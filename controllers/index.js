@@ -6,23 +6,22 @@ require('dotenv').config();
 
 exports.signup = [
     check('username').isLength({min: 4}).withMessage("Must be at least 4 characters long."),
-    check('email').isEmail().withMessage("Invalid email."),
+    check('email').isEmail().withMessage("Invalid email.").custom(value => User.emailExists(value)),
     check('password').isLength({min:6}).withMessage("Must be at least 6 characters long."),
 
     (req, res) => {
         const errors = validationResult(req)
         if(!errors.isEmpty()) {
             return res.status(422).json({
-                error: errors.array()
+                errors: errors.array()
             })
         }
         bcrypt.hash(req.body.password, 12, function(err, hash) {
             if(err && err.length) {
                 return res.status(400).json({
-                    error: err
+                    errors: err
                 })
             }
-            console.log(hash)
             var user = new User({
                 username: req.body.username,
                 password: hash,
@@ -33,11 +32,11 @@ exports.signup = [
                 if(err) {
                     if(err.name === 'MongoError' && err.code === 11000) {
                         return res.status(400).json({
-                            error: "Username already taken."
+                            errors: ["Username already taken."]
                         })
                     }else {
                         return res.status(500).json({
-                            error: "Could not create user."
+                            errors: ["Could not create user."]
                         })
                     }
                 }else {
@@ -52,7 +51,7 @@ exports.signup = [
 ]
 
 exports.login = (req, res) => {
-    User.find({'username': req.body.username})
+    User.find({username: req.body.username})
     .exec()
     .then(user => {
         bcrypt.compare(req.body.password, user[0].password, function(err, result) {
