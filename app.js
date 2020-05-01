@@ -18,117 +18,64 @@ mongoose.connect(process.env.MongoDB, {
 });
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
-var users = mongoose.model('User');
+var messages = require('./models/messages');
+
+var checkAuth = require('./Authentication/checkAuth')
+var usersController = require('./controllers/usersController')
+var requestsController = require('./controllers/requestsController')
+var messagesController = require('./controllers/messagesController')
 
 var onlineUsers = {};
 
-io.use(function(socket, next) {
+io.on("connection", function(socket) {
   var query = socket.handshake.query
   if(query && query.token) {
     try{
       jwt.verify(query.token, process.env.JWTSECRET, function(err, decoded) {
         if(decoded.exp < Date.now()/1000) {
-          return next(new Error("Invalid token."))
+          socket.emit('invalid_auth')
+        } else if(onlineUsers[decoded.username]) {
+          socket.emit('duplicate_auth', "Already logged in somewhere.")
         }else {
           socket.username = decoded.username
-          next()
+          console.log(`${socket.username} connected to server.`);
+          onlineUsers[socket.username] = socket;
+          socket.emit('logged_in', decoded.username)
         }
       })
     }
     catch {
-      return next(new Error("Invalid token."))
+        socket.emit('invalid_auth')
     }
   }
-})
-.on("connection", function(socket) {
-  console.log(`${socket.username} connected to server.`);
-  onlineUsers[socket.username] = socket;
 
-  socket.on('get_data', () => {
-    users.find({username: socket.username})
-    .then(user => {
-      var online = []
-      var offline = []
-      user[0].friends.forEach(friend => {
-        if(onlineUsers[friend]) {
-          online.push(friend)
-        }else {
-          offline.push(friend)
-        }
-      })
-      var userData = {
-        online: online,
-        offline: offline,
-        requests: user[0].requests
-      }
-      socket.emit('data', userData)
-    })
-  })
+  socket.on('get_user_data', (token) => usersController.getUserData(socket, onlineUsers, token))
 
-  socket.on('new_user', () => {
-    users.find({username: socket.username})
-    .then( user => {
-      var friends = user[0].friends
-      for(user in onlineUsers) {
-        if(friends.includes(onlineUsers[user].username)) {
-          onlineUsers[user].emit('new_online_friend', socket.username)
-        }
-      }
-    })
-  });
+  socket.on('get_request_data', (token) => requestsController.getRequestData(socket, token))
 
-  socket.on('send_request', friend => {
-    users.sendRequest(socket.username, friend).then(response => {
-      if(response.success) {
-        socket.emit('new_notification', response.success)
-        if(onlineUsers[friend]) {
-          onlineUsers[friend].emit("new_notification", `${socket.username} has sent you a friend request`)
-          onlineUsers[friend].emit('new_request', socket.username)
-        }
-      }else {
-        socket.emit('new_notification', response.error)
-      }
-    })
-  })
+  socket.on('get_message_data', (token) => messagesController.getMessageData(socket, token))
 
-  socket.on('accept_request', request => {
-    users.acceptRequest(socket.username, request)
-    .then(response => {
-      if(response.success) {
-        if(onlineUsers[request]) {
-          onlineUsers[request].emit('new_online_friend', socket.username)
-          socket.emit('new_online_friend', request)
-        }else {
-          socket.emit('new_offline_friend', request)
-        }
-        socket.emit('remove_request', request)
-      }
-    })
-    users.find({username: request})
-    .then(user => {
-      var friend = user[0]
-      friend.friends.push(socket.username)
-      friend.save()
-    })
-  })
+  socket.on('new_user', () => usersController.addUser(socket, onlineUsers));
+
+  socket.on('send_request', (friend) => requestsController.sendRequest(socket, onlineUsers, friend))
+
+  socket.on('accept_request', (request) => requestsController.acceptRequest(socket, onlineUsers, request))
+
+  socket.on('message', (message) => messagesController.createMessage(socket, onlineUsers, message))
 
   socket.on('disconnect', () => {
     delete onlineUsers[socket.username]
-    users.find({username: socket.username})
-    .then( user => {
-      var friends = user[0].friends
-      for(user in onlineUsers) {
-        if(friends.includes(onlineUsers[user].username)) {
-          onlineUsers[user].emit('new_offline_friend', socket.username)
-        }
+    setTimeout(() => {
+      if(!onlineUsers[socket.username]) {
+        usersController.removeUser(socket, onlineUsers)
       }
-    })
-    console.log("User disconnected.")
+    }, 5000);
   })
 })
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/', indexRouter)
+
 server.listen(port, () => 
   console.log(`Listening on port ${port}`)
 )

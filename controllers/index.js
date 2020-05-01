@@ -1,13 +1,20 @@
 var { check, validationResult } = require('express-validator');
 var bcrypt = require('bcrypt');
-var User = require('../models/users');
 var jwt = require('jsonwebtoken');
 require('dotenv').config();
 
+const neo4j = require('neo4j-driver');
+var driver = neo4j.driver('bolt://localhost:11002', neo4j.auth.basic('neo4j', "Pass11word"));
+var session = driver.session();
+
+//Constraints
+//CREATE CONSTRAINT ON (n: user) ASSERT n.username IS UNIQUE
+//CREATE CONSTRAINT ON (n: user) ASSERT n.email IS UNIQUE
+
 exports.signup = [
     check('username').isLength({min: 4}).withMessage("Must be at least 4 characters long."),
-    check('email').isEmail().withMessage("Invalid email.").custom(value => User.emailExists(value)),
     check('password').isLength({min:6}).withMessage("Must be at least 6 characters long."),
+    check('email').isEmail().withMessage("Invalid email."),
 
     (req, res) => {
         const errors = validationResult(req)
@@ -22,27 +29,23 @@ exports.signup = [
                     errors: err
                 })
             }
-            var user = new User({
-                username: req.body.username,
-                password: hash,
-                email: req.body.email,
-                friends: []
+            session.run(`CREATE (user:user{username: '${req.body.username}', password: '${hash}', email: '${req.body.email}'}) RETURN user`)
+            .then(result => {
+                return res.status(200).json({
+                    msg: "User successfully created.",
+                    token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})
+                })
             })
-            user.save(function(err) {
-                if(err) {
-                    if(err.name === 'MongoError' && err.code === 11000) {
-                        return res.status(400).json({
-                            errors: ["Username already taken."]
-                        })
-                    }else {
-                        return res.status(500).json({
-                            errors: ["Could not create user."]
-                        })
-                    }
+            .catch(err => {
+                console.log(err.neo4jError)
+                if(err.code === 'Neo.ClientError.Schema.ConstraintValidationFailed') {
+                    return res.status(400).json({
+                        errors: [{param: "username", msg: "Username or email already in use."}, {param: "email", msg: "Username or email already in use."}]
+                    })
                 }else {
-                    res.status(200).json({
-                        msg: "User successfully created.",
-                        token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})
+                    console.log(err)
+                    return res.status(400).json({
+                        errors: [{param: "body", msg:  'Something went wrong.'}]
                     })
                 }
             })
@@ -51,25 +54,22 @@ exports.signup = [
 ]
 
 exports.login = (req, res) => {
-    User.find({username: req.body.username})
-    .exec()
-    .then(user => {
-        bcrypt.compare(req.body.password, user[0].password, function(err, result) {
-            if(!result) {
-                return res.status(422).json({
-                    error: "Invalid Credentials"
-                })
-            }else {
+    session.run(`MATCH (user:user{username: '${req.body.username}'}) RETURN user`)
+    .then(result => {
+        if(result.records[0]) {
+            bcrypt.compare(req.body.password, result.records[0]._fields[0].properties.password, (err, result) => {
                 return res.status(200).json({
                     msg: "Authentication successful.",
                     token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})
                 })
-            }
-        })
+            })
+        }else {
+            return res.status(422).json({
+                error: "Invalid Credentials"
+            })
+        }
     })
     .catch(error => {
-        return res.status(400).json({
-            error: "Invalid Credentials"
-        })
+        console.log(error)
     })
 }
