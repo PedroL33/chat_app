@@ -28,3 +28,13 @@ module.exports.createMessage = function(socket, onlineUsers, newMessage) {
         onlineUsers[newMessage.to].emit('message_update', newMessage.from)
     })
 }
+
+module.exports.markRead = function(socket, from) {
+    Message.updateMany({$and: [{to: socket.username}, {from: from}, {read: false}]}, {$set: {read: true}})
+    .exec((err, results) => {
+        if(err) {
+            return console.log(err)
+        }
+        socket.emit("message_update", socket.username)
+    })
+}

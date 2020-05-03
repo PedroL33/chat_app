@@ -31,7 +31,7 @@ module.exports.getRequestData = function(socket, token) {
 module.exports.sendRequest = function(socket, onlineUsers, friend) {
   var session = driver.session();
   if(friend === socket.username) {
-    console.log('Cannot Add yourself.')
+    socket.emit('request_message', {type: 'error', msg: 'Cannot add yourself.'})
   }else {
     session.run(
       `MATCH (from:user), (to:user) 
@@ -51,8 +51,8 @@ module.exports.sendRequest = function(socket, onlineUsers, friend) {
       }else if(results.records[0]._fields[0].properties.duplicate) {
         socket.emit('request_message', {type: 'error', msg: "Request has already been sent"})
       }else {
-        socket.emit('request_message', "Request sent.")
-        onlineUsers[friend].emit({type: 'success', msg: 'request_update'})
+        socket.emit('request_message', {type: 'success', msg: "Request sent."})
+        onlineUsers[friend].emit('request_update')
       }
     })
     .finally(() => {

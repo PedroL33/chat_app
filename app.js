@@ -63,6 +63,12 @@ io.on("connection", function(socket) {
 
   socket.on('message', (message) => messagesController.createMessage(socket, onlineUsers, message))
 
+  socket.on('mark_read', (from) => messagesController.markRead(socket, from))
+
+  socket.on('started_typing', (data) => onlineUsers[data.to].emit('friend_is_typing', data.from))
+
+  socket.on('stopped_typing', (data) => onlineUsers[data.to].emit('friend_stopped_typing', data.from))
+
   socket.on('disconnect', () => {
     delete onlineUsers[socket.username]
     setTimeout(() => {

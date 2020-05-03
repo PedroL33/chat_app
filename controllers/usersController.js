@@ -11,14 +11,18 @@ module.exports.getUserData = function (socket, onlineUsers, token) {
         RETURN friend`
       )
       .then( result => {
-        var online = []
-        var offline = []
+        var online = {}
+        var offline = {}
         if(result.records.length) {
             result.records.forEach(item => {
             if(onlineUsers[item._fields[0].properties.username]) {
-                online.push(item._fields[0].properties.username)
+                online[item._fields[0].properties.username] = {
+                  isTyping: false
+                }
             }else {
-                offline.push(item._fields[0].properties.username)
+                offline[item._fields[0].properties.username] = {
+                  isTyping: false
+                }
             }
             })
         }
