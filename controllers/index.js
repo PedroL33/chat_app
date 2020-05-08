@@ -1,6 +1,8 @@
 var { check, validationResult } = require('express-validator');
 var bcrypt = require('bcrypt');
 var jwt = require('jsonwebtoken');
+const AWS = require("aws-sdk");
+
 require('dotenv').config();
 
 const neo4j = require('neo4j-driver');
@@ -72,4 +74,8 @@ exports.login = (req, res) => {
     .catch(error => {
         console.log(error)
     })
+}
+
+exports.upload = (req, res) => {
+    console.log(req.body)
 }

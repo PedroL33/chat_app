@@ -20,7 +20,6 @@ var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 var messages = require('./models/messages');
 
-var checkAuth = require('./Authentication/checkAuth')
 var usersController = require('./controllers/usersController')
 var requestsController = require('./controllers/requestsController')
 var messagesController = require('./controllers/messagesController')
