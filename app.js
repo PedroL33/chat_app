@@ -9,7 +9,6 @@ var cors = require('cors');
 app.use(cors())
 var io = socketIO(server)
 var indexRouter = require('./routes')
-
 var port = process.env.PORT || 3000;
 
 var mongoose = require('mongoose');
