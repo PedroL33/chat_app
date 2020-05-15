@@ -1,5 +1,5 @@
 const neo4j = require('neo4j-driver');
-var driver = neo4j.driver('bolt://localhost:11002', neo4j.auth.basic('neo4j', "Pass11word"));
+var driver = neo4j.driver('bolt://localhost:11003', neo4j.auth.basic('neo4j', "Pass11word"));
 var auth = require('../Authentication/checkAuth')
 
 module.exports.getRequestData = function(socket, token) {

@@ -1,12 +1,10 @@
 var { check, validationResult } = require('express-validator');
 var bcrypt = require('bcrypt');
 var jwt = require('jsonwebtoken');
-const AWS = require("aws-sdk");
-
 require('dotenv').config();
 
 const neo4j = require('neo4j-driver');
-var driver = neo4j.driver('bolt://localhost:11002', neo4j.auth.basic('neo4j', "Pass11word"));
+var driver = neo4j.driver('bolt://localhost:11003', neo4j.auth.basic('neo4j', "Pass11word"));
 var session = driver.session();
 
 //Constraints
@@ -31,7 +29,7 @@ exports.signup = [
                     errors: err
                 })
             }
-            session.run(`CREATE (user:user{username: '${req.body.username}', password: '${hash}', email: '${req.body.email}'}) RETURN user`)
+            session.run(`CREATE (user:user{username: '${req.body.username}', password: '${hash}', email: '${req.body.email}', status: "chatting", picture: "https://chatbucket11.s3-us-west-2.amazonaws.com/bucketFolder/1589250752087-lg.png"}) RETURN user`)
             .then(result => {
                 return res.status(200).json({
                     msg: "User successfully created.",
@@ -59,11 +57,17 @@ exports.login = (req, res) => {
     session.run(`MATCH (user:user{username: '${req.body.username}'}) RETURN user`)
     .then(result => {
         if(result.records[0]) {
-            bcrypt.compare(req.body.password, result.records[0]._fields[0].properties.password, (err, result) => {
-                return res.status(200).json({
-                    msg: "Authentication successful.",
-                    token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})
-                })
+            bcrypt.compare(req.body.password, result.records[0]._fields[0].properties.password, (err, results) => {
+                if(results) {
+                    return res.status(200).json({
+                        msg: "Authentication successful.",
+                        token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})
+                    })
+                }else {
+                    return res.status(400).json({
+                        error: "Invalid Credentials"
+                    })
+                }
             })
         }else {
             return res.status(422).json({
@@ -74,8 +78,4 @@ exports.login = (req, res) => {
     .catch(error => {
         console.log(error)
     })
-}
-
-exports.upload = (req, res) => {
-    console.log(req.body)
 }

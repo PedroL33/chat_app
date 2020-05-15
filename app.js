@@ -1,16 +1,16 @@
 var express = require('express');
 require('dotenv').config();
 var app = express();
+var jwt = require('jsonwebtoken');
 var http = require('http');
 var socketIO = require('socket.io')
 var server = http.createServer(app);
-const cors = require('cors');
-const io = socketIO(server)
-const indexRouter = require('./routes')
-app.use(cors())
-const jwt = require('jsonwebtoken');
+var cors = require('cors');
+var io = socketIO(server)
+var indexRouter = require('./routes')
 
-const port = process.env.PORT || 3000;
+var port = process.env.PORT || 3000;
+
 var mongoose = require('mongoose');
 mongoose.connect(process.env.MongoDB, {
   useNewUrlParser: true,
@@ -18,6 +18,7 @@ mongoose.connect(process.env.MongoDB, {
 });
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
+
 var messages = require('./models/messages');
 
 var usersController = require('./controllers/usersController')
@@ -39,7 +40,7 @@ io.on("connection", function(socket) {
           socket.username = decoded.username
           console.log(`${socket.username} connected to server.`);
           onlineUsers[socket.username] = socket;
-          socket.emit('logged_in', decoded.username)
+          usersController.getCurrentUser(socket);
         }
       })
     }
@@ -54,7 +55,9 @@ io.on("connection", function(socket) {
 
   socket.on('get_message_data', (token) => messagesController.getMessageData(socket, token))
 
-  socket.on('new_user', () => usersController.addUser(socket, onlineUsers));
+  socket.on('get_current_user', () => usersController.getCurrentUser(socket))
+
+  socket.on('new_user', () => usersController.friendUpdate(socket, onlineUsers, {type: "online", username: socket.username}));
 
   socket.on('send_request', (friend) => requestsController.sendRequest(socket, onlineUsers, friend))
 
@@ -68,18 +71,26 @@ io.on("connection", function(socket) {
 
   socket.on('stopped_typing', (data) => onlineUsers[data.to].emit('friend_stopped_typing', data.from))
 
+  socket.on('profile_photo', (file) => usersController.uploadPhoto(socket, file))
+
+  socket.on('update_status', (status) => usersController.updateStatus(socket, status))
+
+  socket.on('broadcast_update', (data) => usersController.friendUpdate(socket, onlineUsers, data))
+
   socket.on('disconnect', () => {
     delete onlineUsers[socket.username]
     setTimeout(() => {
       if(!onlineUsers[socket.username]) {
-        usersController.removeUser(socket, onlineUsers)
+        usersController.friendUpdate(socket, onlineUsers, {type: "offline", username: socket.username})
       }
     }, 5000);
   })
 })
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/', indexRouter)
+app.use(cors())
 
 server.listen(port, () => 
   console.log(`Listening on port ${port}`)

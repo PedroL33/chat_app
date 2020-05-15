@@ -1,6 +1,43 @@
 const neo4j = require('neo4j-driver');
-var driver = neo4j.driver('bolt://localhost:11002', neo4j.auth.basic('neo4j', "Pass11word"));
+var driver = neo4j.driver('bolt://localhost:11003', neo4j.auth.basic('neo4j', "Pass11word"));
 var auth = require('../Authentication/checkAuth')
+const AWS = require("aws-sdk");
+const FileType = require('file-type');
+const bluebird = require('bluebird');
+
+AWS.config.update({
+    accessKeyId: process.env.AWSAccessKeyId,
+    secretAccessKey: process.env.AWSSecretKey
+});
+AWS.config.setPromisesDependency(bluebird);
+const s3 = new AWS.S3();
+
+const uploadFile = (buffer, name, type) => {
+  const params = {
+    ACL: 'public-read',
+    Body: buffer,
+    Bucket: 'chatbucket11',
+    ContentType: type.mime,
+    Key: `${name}.${type.ext}`
+  };
+  return s3.upload(params).promise();
+};
+
+module.exports.getCurrentUser = function(socket) {
+  var session = driver.session()
+  session.run(`MATCH (currentUser:user {username: '${socket.username}'}) RETURN currentUser`)
+  .then(results => {
+    var currentUser = {
+      username: results.records[0]._fields[0].properties.username,
+      picture: results.records[0]._fields[0].properties.picture,
+      status: results.records[0]._fields[0].properties.status
+    }
+    socket.emit('current_user_data', currentUser)
+  })
+  .finally(() => {
+    session.close();
+  })
+}
 
 module.exports.getUserData = function (socket, onlineUsers, token) {
   auth.checkAuth(token, (res) => {
@@ -17,7 +54,9 @@ module.exports.getUserData = function (socket, onlineUsers, token) {
             result.records.forEach(item => {
             if(onlineUsers[item._fields[0].properties.username]) {
                 online[item._fields[0].properties.username] = {
-                  isTyping: false
+                  isTyping: false,
+                  picture: item._fields[0].properties.picture, 
+                  status: item._fields[0].properties.status
                 }
             }else {
                 offline[item._fields[0].properties.username] = {
@@ -42,7 +81,7 @@ module.exports.getUserData = function (socket, onlineUsers, token) {
   })
 }
 
-module.exports.addUser = function(socket, onlineUsers) {
+module.exports.friendUpdate = function(socket, onlineUsers, data) {
   var session = driver.session();
   session.run(
     `MATCH (:user {username: '${socket.username}'}) - [r:FRIEND {status: 'accepted'}] - (friend:user)
@@ -52,6 +91,7 @@ module.exports.addUser = function(socket, onlineUsers) {
     results.records.forEach(item => {
       if(onlineUsers[item._fields[0].properties.username]) {
         onlineUsers[item._fields[0].properties.username].emit('friend_update')
+        onlineUsers[item._fields[0].properties.username].emit('timeline_update', data)
       }
     })
   })
@@ -60,21 +100,35 @@ module.exports.addUser = function(socket, onlineUsers) {
   })
 }
 
-module.exports.removeUser = function(socket, onlineUsers) {
+module.exports.uploadPhoto = async function(socket, file) {
+  try {
+    const type = await FileType.fromBuffer(file);
+    const timestamp = Date.now().toString();
+    const fileName = `bucketFolder/${timestamp}-lg`;
+    const data = await uploadFile(file, fileName, type);
+    var session = driver.session();
+    session.run(
+      `MATCH (currentUser:user {username: '${socket.username}'})
+      set currentUser.picture='${data.Location}'`
+    )
+    .then(results => {
+      socket.emit('update_complete', {type: "picture", url: data.Location, username: socket.username})
+    })
+    .finally(() => session.close())
+  }
+  catch(err) {
+    console.log(err)
+  }
+}
+
+module.exports.updateStatus = function(socket, status) {
   var session = driver.session();
   session.run(
-    `MATCH (:user {username: '${socket.username}'}) - [r:FRIEND {status: 'accepted'}] - (friend:user)
-    RETURN friend`
+    `MATCH (currentUser:user {username: '${socket.username}'})
+    set currentUser.status='${status}'`
   )
-  .then(results => {
-    results.records.forEach(item => {
-      if(onlineUsers[item._fields[0].properties.username]) {
-        onlineUsers[item._fields[0].properties.username].emit('friend_update')
-      }
-    })
+  .then(result => {
+    socket.emit('update_complete', {type: "status", status: status, username: socket.username})
   })
-  .finally(() => {
-    session.close();
-  })
-  console.log(`${socket.username} disconnected.`)
+  .finally(() => session.close())
 }
