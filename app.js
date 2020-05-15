@@ -6,6 +6,7 @@ var http = require('http');
 var socketIO = require('socket.io')
 var server = http.createServer(app);
 var cors = require('cors');
+app.use(cors())
 var io = socketIO(server)
 var indexRouter = require('./routes')
 
@@ -90,7 +91,6 @@ io.on("connection", function(socket) {
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/', indexRouter)
-app.use(cors())
 
 server.listen(port, () => 
   console.log(`Listening on port ${port}`)
