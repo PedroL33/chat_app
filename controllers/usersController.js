@@ -1,5 +1,5 @@
 const neo4j = require('neo4j-driver');
-var driver = neo4j.driver('bolt://localhost:11003', neo4j.auth.basic('neo4j', "Pass11word"));
+var driver = neo4j.driver(process.env.GRAPHENEDB_BOLT_URL, neo4j.auth.basic(process.env.GRAPHENEDB_BOLT_USER, process.env.GRAPHENEDB_BOLT_PASSWORD));
 var auth = require('../Authentication/checkAuth')
 const AWS = require("aws-sdk");
 const FileType = require('file-type');

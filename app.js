@@ -12,7 +12,7 @@ var indexRouter = require('./routes')
 var port = process.env.PORT || 3000;
 
 var mongoose = require('mongoose');
-mongoose.connect(process.env.MongoDB, {
+mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 });
