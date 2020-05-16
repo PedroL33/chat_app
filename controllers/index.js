@@ -31,6 +31,7 @@ exports.signup = [
             }
             session.run(`CREATE (user:user{username: '${req.body.username}', password: '${hash}', email: '${req.body.email}', status: "chatting", picture: "https://chatbucket11.s3-us-west-2.amazonaws.com/bucketFolder/1589250752087-lg.png"}) RETURN user`)
             .then(result => {
+                console.log(process.env.JWTSECRET)
                 return res.status(200).json({
                     msg: "User successfully created.",
                     token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})

@@ -72,6 +72,22 @@ module.exports.acceptRequest = function(socket, onlineUsers, request) {
     socket.emit('request_update')
     socket.emit('friend_update')
     onlineUsers[request].emit('friend_update')
+    onlineUsers[request].emit('timeline_update', {type: "request_accepted", username: socket.username, time: Date.now()})
+  })
+  .finally(() => {
+    session.close()
+  })
+}
+
+module.exports.declineRequest = function(socket, onlineUsers, request) {
+  var session = driver.session();
+  session.run(
+    `MATCH (:user { username: '${socket.username}'}) <- [r:FRIEND {status: 'requested'}] - (:user {username: '${request}'})
+    DELETE r`
+  )
+  .then(results => {
+    socket.emit('request_update')
+    onlineUsers[request].emit('timeline_update', {type: "request_declined", username: socket.username, time: Date.now()})
   })
   .finally(() => {
     session.close()

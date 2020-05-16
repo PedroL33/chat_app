@@ -112,7 +112,7 @@ module.exports.uploadPhoto = async function(socket, file) {
       set currentUser.picture='${data.Location}'`
     )
     .then(results => {
-      socket.emit('update_complete', {type: "picture", url: data.Location, username: socket.username})
+      socket.emit('update_complete', {type: "picture", url: data.Location, username: socket.username, time: Date.now()})
     })
     .finally(() => session.close())
   }
@@ -128,7 +128,7 @@ module.exports.updateStatus = function(socket, status) {
     set currentUser.status='${status}'`
   )
   .then(result => {
-    socket.emit('update_complete', {type: "status", status: status, username: socket.username})
+    socket.emit('update_complete', {type: "status", status: status, username: socket.username, time: Date.now()})
   })
   .finally(() => session.close())
 }
