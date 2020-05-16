@@ -18,8 +18,6 @@ mongoose.connect(process.env.MONGODB_URI, {
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
-var messages = require('./models/messages');
-
 var usersController = require('./controllers/usersController')
 var requestsController = require('./controllers/requestsController')
 var messagesController = require('./controllers/messagesController')
@@ -62,7 +60,7 @@ io.on("connection", function(socket) {
 
   socket.on('accept_request', (request) => requestsController.acceptRequest(socket, onlineUsers, request))
   
-  socket.on('decline_request', requestsController.declineRequest(socket, onlineUsers, request))
+  socket.on('decline_request', (request) => requestsController.declineRequest(socket, onlineUsers, request))
 
   socket.on('message', (message) => messagesController.createMessage(socket, onlineUsers, message))
 
