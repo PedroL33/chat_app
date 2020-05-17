@@ -55,7 +55,7 @@ io.on("connection", function(socket) {
 
   socket.on('get_current_user', () => usersController.getCurrentUser(socket))
 
-  socket.on('new_user', () => usersController.friendUpdate(socket, onlineUsers, {type: "online", username: socket.username, time: moment(Date.now()).calendar()}))
+  socket.on('new_user', () => usersController.friendUpdate(socket, onlineUsers, {message: "has come online.", username: socket.username, time: moment(Date.now()).calendar()}))
 
   socket.on('send_request', (friend) => requestsController.sendRequest(socket, onlineUsers, friend))
 
@@ -81,7 +81,7 @@ io.on("connection", function(socket) {
     delete onlineUsers[socket.username]
     setTimeout(() => {
       if(!onlineUsers[socket.username]) {
-        usersController.friendUpdate(socket, onlineUsers, {type: "offline", username: socket.username, time: moment(Date.now()).calendar()})
+        usersController.friendUpdate(socket, onlineUsers, {type: "has gone offline.", username: socket.username, time: moment(Date.now()).calendar()})
       }
     }, 5000);
   })
