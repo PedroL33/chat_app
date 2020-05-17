@@ -72,7 +72,7 @@ module.exports.acceptRequest = function(socket, onlineUsers, request) {
     socket.emit('request_update')
     socket.emit('friend_update')
     onlineUsers[request].emit('friend_update')
-    onlineUsers[request].emit('timeline_update', {type: "request_accepted", username: socket.username, time: Date.now()})
+    onlineUsers[request].emit('timeline_update', {type: "request_accepted", username: socket.username, time: moment().calandar()})
   })
   .finally(() => {
     session.close()
@@ -87,7 +87,7 @@ module.exports.declineRequest = function(socket, onlineUsers, request) {
   )
   .then(results => {
     socket.emit('request_update')
-    onlineUsers[request].emit('timeline_update', {type: "request_declined", username: socket.username, time: Date.now()})
+    onlineUsers[request].emit('timeline_update', {type: "request_declined", username: socket.username, time: moment().calandar()})
   })
   .finally(() => {
     session.close()

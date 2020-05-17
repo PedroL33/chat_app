@@ -10,6 +10,8 @@ app.use(cors())
 var io = socketIO(server)
 var indexRouter = require('./routes')
 var port = process.env.PORT || 3000;
+var moment = require('moment')
+
 var mongoose = require('mongoose');
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
@@ -54,7 +56,7 @@ io.on("connection", function(socket) {
 
   socket.on('get_current_user', () => usersController.getCurrentUser(socket))
 
-  socket.on('new_user', () => usersController.friendUpdate(socket, onlineUsers, {type: "online", username: socket.username, time: Date.now()}));
+  socket.on('new_user', () => usersController.friendUpdate(socket, onlineUsers, {type: "online", username: socket.username, time: moment().calandar()}));
 
   socket.on('send_request', (friend) => requestsController.sendRequest(socket, onlineUsers, friend))
 
@@ -80,7 +82,7 @@ io.on("connection", function(socket) {
     delete onlineUsers[socket.username]
     setTimeout(() => {
       if(!onlineUsers[socket.username]) {
-        usersController.friendUpdate(socket, onlineUsers, {type: "offline", username: socket.username, time: Date.now()})
+        usersController.friendUpdate(socket, onlineUsers, {type: "offline", username: socket.username, time: moment().calandar()})
       }
     }, 5000);
   })
