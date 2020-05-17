@@ -81,7 +81,7 @@ io.on("connection", function(socket) {
     delete onlineUsers[socket.username]
     setTimeout(() => {
       if(!onlineUsers[socket.username]) {
-        usersController.friendUpdate(socket, onlineUsers, {type: "has gone offline.", username: socket.username, time: moment(Date.now()).calendar()})
+        usersController.friendUpdate(socket, onlineUsers, {message: "has gone offline.", username: socket.username, time: moment(Date.now()).calendar()})
       }
     }, 5000);
   })
