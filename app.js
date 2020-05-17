@@ -25,7 +25,6 @@ var requestsController = require('./controllers/requestsController')
 var messagesController = require('./controllers/messagesController')
 
 var onlineUsers = {};
-
 io.on("connection", function(socket) {
   var query = socket.handshake.query
   if(query && query.token) {
@@ -56,7 +55,7 @@ io.on("connection", function(socket) {
 
   socket.on('get_current_user', () => usersController.getCurrentUser(socket))
 
-  socket.on('new_user', () => usersController.friendUpdate(socket, onlineUsers, {type: "online", username: socket.username, time: moment().calandar()}));
+  socket.on('new_user', () => usersController.friendUpdate(socket, onlineUsers, {type: "online", username: socket.username, time: moment(Date.now()).calandar()}))
 
   socket.on('send_request', (friend) => requestsController.sendRequest(socket, onlineUsers, friend))
 
@@ -82,7 +81,7 @@ io.on("connection", function(socket) {
     delete onlineUsers[socket.username]
     setTimeout(() => {
       if(!onlineUsers[socket.username]) {
-        usersController.friendUpdate(socket, onlineUsers, {type: "offline", username: socket.username, time: moment().calandar()})
+        usersController.friendUpdate(socket, onlineUsers, {type: "offline", username: socket.username, time: moment(Date.now()).calandar()})
       }
     }, 5000);
   })
