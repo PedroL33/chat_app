@@ -5,7 +5,6 @@ require('dotenv').config();
 
 const neo4j = require('neo4j-driver');
 var driver = neo4j.driver(process.env.GRAPHENEDB_BOLT_URL, neo4j.auth.basic(process.env.GRAPHENEDB_BOLT_USER, process.env.GRAPHENEDB_BOLT_PASSWORD), { encrypted : true });
-var session = driver.session();
 
 //Constraints
 //CREATE CONSTRAINT ON (n: user) ASSERT n.username IS UNIQUE
@@ -29,6 +28,7 @@ exports.signup = [
                     errors: err
                 })
             }
+            var session = driver.session();
             session.run(`CREATE (user:user{username: '${req.body.username}', password: '${hash}', email: '${req.body.email}', status: "chatting", picture: "https://chatbucket11.s3-us-west-2.amazonaws.com/bucketFolder/1589250752087-lg.png"}) RETURN user`)
             .then(result => {
                 console.log(process.env.JWTSECRET)
@@ -50,11 +50,13 @@ exports.signup = [
                     })
                 }
             })
+            .finally(() => session.close())
         })
     }
 ]
 
 exports.login = (req, res) => {
+    var session = driver.session();
     session.run(`MATCH (user:user{username: '${req.body.username}'}) RETURN user`)
     .then(result => {
         if(result.records[0]) {
@@ -79,4 +81,5 @@ exports.login = (req, res) => {
     .catch(error => {
         console.log(error)
     })
+    .finally(()=> session.close())
 }
