@@ -61,7 +61,9 @@ module.exports.getUserData = function (socket, onlineUsers, token) {
                 }
             }else {
                 offline[item._fields[0].properties.username] = {
-                  isTyping: false
+                  isTyping: false,
+                  picture: item._fields[0].properties.picture, 
+                  status: item._fields[0].properties.status
                 }
             }
             })

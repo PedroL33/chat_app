@@ -53,7 +53,9 @@ module.exports.sendRequest = function(socket, onlineUsers, friend) {
         socket.emit('request_message', {type: 'error', msg: "Request has already been sent"})
       }else {
         socket.emit('request_message', {type: 'success', msg: "Request sent."})
-        onlineUsers[friend].emit('request_update')
+        if(onlineUsers[friend]) {
+          onlineUsers[friend].emit('request_update')
+        }
       }
     })
     .finally(() => {
@@ -72,8 +74,10 @@ module.exports.acceptRequest = function(socket, onlineUsers, request) {
   .then(results => {
     socket.emit('request_update')
     socket.emit('friend_update')
-    onlineUsers[request].emit('friend_update')
-    onlineUsers[request].emit('timeline_update', {message: "accepted your friend request.", username: socket.username, time: moment(Date.now()).calendar()})
+    if(onlineUsers[request]) {
+      onlineUsers[request].emit('friend_update')
+      onlineUsers[request].emit('timeline_update', {message: "accepted your friend request.", username: socket.username, time: moment(Date.now()).calendar()})
+    }
   })
   .finally(() => {
     session.close()
@@ -88,7 +92,9 @@ module.exports.declineRequest = function(socket, onlineUsers, request) {
   )
   .then(results => {
     socket.emit('request_update')
-    onlineUsers[request].emit('timeline_update', {message: `declined your friend request`, username: socket.username, time: moment(Date.now()).calendar()})
+    if(onlineUsers[request]) {
+      onlineUsers[request].emit('timeline_update', {message: `declined your friend request`, username: socket.username, time: moment(Date.now()).calendar()})
+    }
   })
   .finally(() => {
     session.close()

@@ -25,7 +25,9 @@ module.exports.createMessage = function(socket, onlineUsers, newMessage) {
             return console.log(err)
         }
         socket.emit('message_update', newMessage.from)
-        onlineUsers[newMessage.to].emit('message_update', newMessage.from)
+        if(onlineUsers[newMessage.to]) {
+            onlineUsers[newMessage.to].emit('message_update', newMessage.from)
+        }
     })
 }
 

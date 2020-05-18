@@ -67,9 +67,9 @@ io.on("connection", function(socket) {
 
   socket.on('mark_read', (from) => messagesController.markRead(socket, from))
 
-  socket.on('started_typing', (data) => onlineUsers[data.to].emit('friend_is_typing', data.from))
+  socket.on('started_typing', (data) => onlineUsers[data.to] && onlineUsers[data.to].emit('friend_is_typing', data.from))
 
-  socket.on('stopped_typing', (data) => onlineUsers[data.to].emit('friend_stopped_typing', data.from))
+  socket.on('stopped_typing', (data) => onlineUsers[data.to] && onlineUsers[data.to].emit('friend_stopped_typing', data.from))
 
   socket.on('profile_photo', (file) => usersController.uploadPhoto(socket, file))
 
@@ -82,6 +82,7 @@ io.on("connection", function(socket) {
     setTimeout(() => {
       if(!onlineUsers[socket.username]) {
         usersController.friendUpdate(socket, onlineUsers, {message: "has gone offline.", username: socket.username, time: moment(Date.now()).calendar()})
+        console.log(`${socket.username} has disconnected.`)
       }
     }, 5000);
   })
