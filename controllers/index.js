@@ -6,10 +6,6 @@ require('dotenv').config();
 const neo4j = require('neo4j-driver');
 var driver = neo4j.driver(process.env.GRAPHENEDB_BOLT_URL, neo4j.auth.basic(process.env.GRAPHENEDB_BOLT_USER, process.env.GRAPHENEDB_BOLT_PASSWORD), { encrypted : true });
 
-//Constraints
-//CREATE CONSTRAINT ON (n: user) ASSERT n.username IS UNIQUE
-//CREATE CONSTRAINT ON (n: user) ASSERT n.email IS UNIQUE
-
 exports.signup = [
     check('username').isLength({min: 4}).withMessage("Must be at least 4 characters long."),
     check('password').isLength({min:6}).withMessage("Must be at least 6 characters long."),
@@ -31,7 +27,6 @@ exports.signup = [
             var session = driver.session();
             session.run(`CREATE (user:user{username: '${req.body.username}', password: '${hash}', email: '${req.body.email}', status: "chatting", picture: "https://chatbucket11.s3-us-west-2.amazonaws.com/bucketFolder/1589250752087-lg.png"}) RETURN user`)
             .then(result => {
-                console.log(process.env.JWTSECRET)
                 return res.status(200).json({
                     msg: "User successfully created.",
                     token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})
