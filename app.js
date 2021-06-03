@@ -17,8 +17,6 @@ mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 });
-var db = mongoose.connection;
-db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
 var usersController = require('./controllers/usersController')
 var requestsController = require('./controllers/requestsController')

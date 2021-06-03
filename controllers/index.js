@@ -1,80 +1,54 @@
 var { check, validationResult } = require('express-validator');
 var bcrypt = require('bcrypt');
 var jwt = require('jsonwebtoken');
+const User = require('../models/users');
 require('dotenv').config();
-
-const neo4j = require('neo4j-driver');
-var driver = neo4j.driver(process.env.GRAPHENEDB_BOLT_URL, neo4j.auth.basic(process.env.GRAPHENEDB_BOLT_USER, process.env.GRAPHENEDB_BOLT_PASSWORD), { encrypted : true });
 
 exports.signup = [
     check('username').isLength({min: 4}).withMessage("Must be at least 4 characters long."),
     check('password').isLength({min:6}).withMessage("Must be at least 6 characters long."),
-    check('email').isEmail().withMessage("Invalid email."),
 
-    (req, res) => {
+    async (req, res) => {
         const errors = validationResult(req)
         if(!errors.isEmpty()) {
             return res.status(422).json({
                 errors: errors.array()
             })
         }
-        bcrypt.hash(req.body.password, 12, function(err, hash) {
-            if(err && err.length) {
-                return res.status(400).json({
-                    errors: err
-                })
-            }
-            var session = driver.session();
-            session.run(`CREATE (user:user{username: '${req.body.username}', password: '${hash}', email: '${req.body.email}', status: "chatting", picture: "https://chatbucket11.s3-us-west-2.amazonaws.com/bucketFolder/1589250752087-lg.png"}) RETURN user`)
-            .then(result => {
-                return res.status(200).json({
-                    msg: "User successfully created.",
-                    token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})
-                })
-            })
-            .catch(err => {
-                console.log(err.neo4jError)
-                if(err.code === 'Neo.ClientError.Schema.ConstraintValidationFailed') {
-                    return res.status(400).json({
-                        errors: [{param: "username", msg: "Username or email already in use."}, {param: "email", msg: "Username or email already in use."}]
-                    })
-                }else {
-                    console.log(err)
-                    return res.status(400).json({
-                        errors: [{param: "body", msg:  'Something went wrong.'}]
-                    })
-                }
-            })
-            .finally(() => session.close())
+        const exists = await User.findOne({username: req.body.username});
+        if(exists) {
+          res.status(400).json({
+            erorrs: [{param: "username", msg: "Already exists."}]
+          })
+        }
+        const passhash = await bcrypt.hash(req.body.password, 12)
+        const user = new User({
+          username: req.body.username,
+          password: passhash
+        })
+        const saved = await user.save()
+        return res.status(200).json({
+            msg: "User successfully created.",
+            token: jwt.sign({username: saved.username, id: saved._id}, process.env.JWTSECRET, {expiresIn: '1h'})
         })
     }
 ]
 
-exports.login = (req, res) => {
-    var session = driver.session();
-    session.run(`MATCH (user:user{username: '${req.body.username}'}) RETURN user`)
-    .then(result => {
-        if(result.records[0]) {
-            bcrypt.compare(req.body.password, result.records[0]._fields[0].properties.password, (err, results) => {
-                if(results) {
-                    return res.status(200).json({
-                        msg: "Authentication successful.",
-                        token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})
-                    })
-                }else {
-                    return res.status(400).json({
-                        error: "Invalid Credentials"
-                    })
-                }
-            })
-        }else {
-            return res.status(422).json({
-                error: "Invalid Credentials"
-            })
-        }
+exports.login = async (req, res) => {
+    const user = await User.findOne({username: req.body.username})
+    if(!user) {
+      return res.status(422).json({
+        error: "Invalid Credentials"
+      })
+    }
+    const match = await bcrypt.compare(req.body.password, user.password)
+    if(!match) {
+      return res.status(422).json({
+        error: "Invalid Credentials"
+      })
+    }
+    return res.status(200).json({
+        msg: "Authentication successful.",
+        token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})
     })
-    .catch(error => {
-        console.log(error)
-    })
-    .finally(()=> session.close())
 }
