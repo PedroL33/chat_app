@@ -52,22 +52,23 @@ module.exports.getCurrentUser = async (socket) => {
 
 module.exports.getUserData = async (socket, onlineUsers, token) => {
   if(auth.checkAuth(token)) {
-    const user = await User.findOne({username: socket.username}).populate('friends');
+    const user = await User.findOne({username: socket.username}).populate('friends.user');
     if(user) {
       const online = {};
       const offline = {};
-      user.friends.forEach(item => {
-        if(onlineUsers[item._fields[0].properties.username]) {
+      const friends = user.friends.filter(item => item.status == "accepted");
+      friends.forEach(item => {
+        if(onlineUsers[item.user.username]) {
           online[item._fields[0].properties.username] = {
             isTyping: false,
-            picture: item._fields[0].properties.picture, 
-            status: item._fields[0].properties.status
+            picture: item.user.image, 
+            status: item.user.status
           }
         }else {
-          offline[item._fields[0].properties.username] = {
+          offline[item.user.username] = {
             isTyping: false,
-            picture: item._fields[0].properties.picture, 
-            status: item._fields[0].properties.status
+            picture: item.user.image, 
+            status: item.user.status
           }
         }
       })
@@ -143,21 +144,27 @@ module.exports.friendUpdate = function(socket, onlineUsers, data) {
   console.log('hi')
 }
 
-module.exports.uploadPhoto = async function(socket, file) {
+module.exports.uploadPhoto = async (socket, file) => {
   try {
     const type = await FileType.fromBuffer(file);
     const timestamp = Date.now().toString();
     const fileName = `bucketFolder/${timestamp}-lg`;
     const data = await uploadFile(file, fileName, type);
-    var session = driver.session();
-    session.run(
-      `MATCH (currentUser:user {username: '${socket.username}'})
-      set currentUser.picture='${data.Location}'`
-    )
-    .then(results => {
+    const user = User.findOne({username: socket.username});
+    user.image = data.Location;
+    const res = await user.save();
+    if(res) {
       socket.emit('update_complete', {message: "updated their profile picture.", username: socket.username, time: moment(Date.now()).calendar()})
-    })
-    .finally(() => session.close())
+    }
+    // var session = driver.session();
+    // session.run(
+    //   `MATCH (currentUser:user {username: '${socket.username}'})
+    //   set currentUser.picture='${data.Location}'`
+    // )
+    // .then(results => {
+    //   socket.emit('update_complete', {message: "updated their profile picture.", username: socket.username, time: moment(Date.now()).calendar()})
+    // })
+    // .finally(() => session.close())
   }
   catch(err) {
     console.log(err)

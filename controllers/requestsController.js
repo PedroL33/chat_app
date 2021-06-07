@@ -108,39 +108,70 @@ module.exports.sendRequest = async (socket, onlineUsers, friend) => {
   // }
 }
 
-module.exports.acceptRequest = function(socket, onlineUsers, request) {
-  var session = driver.session();
-  session.run(
-    `MATCH (:user { username: '${socket.username}'}) <- [r:FRIEND {status: 'requested'}] - (:user {username: '${request}'})
-    SET r.status='accepted'
-    RETURN r`
-  )
-  .then(results => {
-    socket.emit('request_update')
-    socket.emit('friend_update')
-    if(onlineUsers[request]) {
-      onlineUsers[request].emit('friend_update')
-      onlineUsers[request].emit('timeline_update', {message: "accepted your friend request.", username: socket.username, time: moment(Date.now()).calendar()})
+module.exports.acceptRequest = async (socket, onlineUsers, request) => {
+  const users = await User.find({ username: { $in: [request, socket.username]}});
+  if(users.length===1) {
+    socket.emit('request_message', {type: 'error', msg: 'User does not exist.'})
+  }else {
+    const me = users[0].username === request ? users[1]: users[0];
+    const user = users[0].username === request ? users[0]: users[1];
+    const userReq = me.friends.find(item => item.user.equals(user._id));
+    userReq.status = "accepted";
+    const meSaved = await me.save();
+    if(meSaved) {
+      user.friends.push({user: new ObjectId(socket.id), status: "accepted"});
+      const userSaved = await user.save();
+      if(userSaved) {
+        socket.emit('request_update')
+        socket.emit('friend_update')
+        if(onlineUsers[request]) {
+          onlineUsers[request].emit('friend_update')
+          // onlineUsers[request].emit('timeline_update', {message: "accepted your friend request.", username: socket.username, time: moment(Date.now()).calendar()})
+        }
+      }
     }
-  })
-  .finally(() => {
-    session.close()
-  })
+  }
+  // var session = driver.session();
+  // session.run(
+  //   `MATCH (:user { username: '${socket.username}'}) <- [r:FRIEND {status: 'requested'}] - (:user {username: '${request}'})
+  //   SET r.status='accepted'
+  //   RETURN r`
+  // )
+  // .then(results => {
+  //   socket.emit('request_update')
+  //   socket.emit('friend_update')
+  //   if(onlineUsers[request]) {
+  //     onlineUsers[request].emit('friend_update')
+  //     onlineUsers[request].emit('timeline_update', {message: "accepted your friend request.", username: socket.username, time: moment(Date.now()).calendar()})
+  //   }
+  // })
+  // .finally(() => {
+  //   session.close()
+  // })
 }
 
-module.exports.declineRequest = function(socket, onlineUsers, request) {
-  var session = driver.session();
-  session.run(
-    `MATCH (:user { username: '${socket.username}'}) <- [r:FRIEND {status: 'requested'}] - (:user {username: '${request}'})
-    DELETE r`
-  )
-  .then(results => {
+module.exports.declineRequest = async (socket, onlineUsers, request) => {
+  const user = await User.findOne({username: socket.username}).populate('friends.user');
+  user.friends = user.friends.filter(item => item.user.username !== request);
+  const res = await user.save();
+  if(res) {
     socket.emit('request_update')
     if(onlineUsers[request]) {
       onlineUsers[request].emit('timeline_update', {message: `declined your friend request`, username: socket.username, time: moment(Date.now()).calendar()})
     }
-  })
-  .finally(() => {
-    session.close()
-  })
+  }
+  // var session = driver.session();
+  // session.run(
+  //   `MATCH (:user { username: '${socket.username}'}) <- [r:FRIEND {status: 'requested'}] - (:user {username: '${request}'})
+  //   DELETE r`
+  // )
+  // .then(results => {
+  //   socket.emit('request_update')
+  //   if(onlineUsers[request]) {
+  //     onlineUsers[request].emit('timeline_update', {message: `declined your friend request`, username: socket.username, time: moment(Date.now()).calendar()})
+  //   }
+  // })
+  // .finally(() => {
+  //   session.close()
+  // })
 }
