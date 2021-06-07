@@ -17,20 +17,21 @@ exports.signup = [
         }
         const exists = await User.findOne({username: req.body.username});
         if(exists) {
-          res.status(400).json({
+          return res.status(400).json({
             erorrs: [{param: "username", msg: "Already exists."}]
           })
+        }else {
+          const passhash = await bcrypt.hash(req.body.password, 12)
+          const user = new User({
+            username: req.body.username,
+            password: passhash
+          })
+          const saved = await user.save()
+          return res.status(200).json({
+              msg: "User successfully created.",
+              token: jwt.sign({username: saved.username, id: saved._id}, process.env.JWTSECRET, {expiresIn: '1h'})
+          })
         }
-        const passhash = await bcrypt.hash(req.body.password, 12)
-        const user = new User({
-          username: req.body.username,
-          password: passhash
-        })
-        const saved = await user.save()
-        return res.status(200).json({
-            msg: "User successfully created.",
-            token: jwt.sign({username: saved.username, id: saved._id}, process.env.JWTSECRET, {expiresIn: '1h'})
-        })
     }
 ]
 
@@ -49,6 +50,6 @@ exports.login = async (req, res) => {
     }
     return res.status(200).json({
         msg: "Authentication successful.",
-        token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})
+        token: jwt.sign({username: user.username, id: user._id}, process.env.JWTSECRET, {expiresIn: '1h'})
     })
 }

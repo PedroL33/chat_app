@@ -30,13 +30,14 @@ io.on("connection", function(socket) {
       jwt.verify(query.token, process.env.JWTSECRET, function(err, decoded) {
         if(decoded.exp < Date.now()/1000) {
           socket.emit('invalid_auth')
-        } else if(onlineUsers[decoded.username]) {
+        } else if(onlineUsers[decoded.id]) {
           socket.emit('duplicate_auth', "Already logged in somewhere.")
         }else {
-          socket.username = decoded.username
-          console.log(`${socket.username} connected to server.`);
-          onlineUsers[socket.username] = socket;
+          socket.username = decoded.username;
+          socket.id = decoded.id;
+          onlineUsers[decoded.username] = socket;
           usersController.getCurrentUser(socket);
+          console.log(`${socket.username} connected to server.`);
         }
       })
     }

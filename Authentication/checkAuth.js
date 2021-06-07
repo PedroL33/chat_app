@@ -20,17 +20,13 @@ module.exports.authenticate = function (socket, next) {
     }
 }
 
-module.exports.checkAuth = (token, cb) => {
+module.exports.checkAuth = (token) => {
     try {
-        jwt.verify(token, process.env.JWTSECRET, function(err, decoded) {
-            if(decoded.exp < Date.now()/1000) {
-                cb(false)
-            }else {
-                cb(true)
-            }
+        return jwt.verify(token, process.env.JWTSECRET, function(err, decoded) {
+          return decoded.exp >= (Date.now()/1000);
         })
     }
     catch {
-        cb(false);
+        return false;
     }
 }
