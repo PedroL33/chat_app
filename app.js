@@ -36,7 +36,7 @@ io.on("connection", function(socket) {
           socket.username = decoded.username;
           socket.id = decoded.id;
           onlineUsers[decoded.username] = socket;
-          usersController.getCurrentUser(socket);
+          usersController.getCurrentUser(socket, query.token);
           console.log(`${socket.username} connected to server.`);
         }
       })
@@ -52,15 +52,15 @@ io.on("connection", function(socket) {
 
   socket.on('get_message_data', (token) => messagesController.getMessageData(socket, token))
 
-  socket.on('get_current_user', () => usersController.getCurrentUser(socket))
+  socket.on('get_current_user', (token) => usersController.getCurrentUser(socket, token))
 
-  socket.on('new_user', () => usersController.friendUpdate(socket, onlineUsers, {message: "has come online.", username: socket.username, time: moment(Date.now()).calendar()}))
+  socket.on('new_user', (token) => usersController.friendUpdate(socket, onlineUsers, {message: "has come online.", username: socket.username, time: moment(Date.now()).calendar()}, token))
 
-  socket.on('send_request', (friend) => requestsController.sendRequest(socket, onlineUsers, friend))
+  socket.on('send_request', (friend, token) => requestsController.sendRequest(socket, onlineUsers, friend, token))
 
-  socket.on('accept_request', (request) => requestsController.acceptRequest(socket, onlineUsers, request))
+  socket.on('accept_request', (request, token) => requestsController.acceptRequest(socket, onlineUsers, request, token))
   
-  socket.on('decline_request', (request) => requestsController.declineRequest(socket, onlineUsers, request))
+  socket.on('decline_request', (request, token) => requestsController.declineRequest(socket, onlineUsers, request, token))
 
   socket.on('message', (message) => messagesController.createMessage(socket, onlineUsers, message))
 
@@ -70,11 +70,11 @@ io.on("connection", function(socket) {
 
   socket.on('stopped_typing', (data) => onlineUsers[data.to] && onlineUsers[data.to].emit('friend_stopped_typing', data.from))
 
-  socket.on('profile_photo', (file) => usersController.uploadPhoto(socket, file))
+  socket.on('profile_photo', (file, token) => usersController.uploadPhoto(socket, file, token))
 
-  socket.on('update_status', (status) => usersController.updateStatus(socket, status))
+  socket.on('update_status', (status, token) => usersController.updateStatus(socket, status, token))
 
-  socket.on('broadcast_update', (data) => usersController.friendUpdate(socket, onlineUsers, data))
+  socket.on('broadcast_update', (data, token) => usersController.friendUpdate(socket, onlineUsers, data, token))
 
   socket.on('disconnect', () => {
     delete onlineUsers[socket.username]
