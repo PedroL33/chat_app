@@ -10,20 +10,24 @@ module.exports.getMessageData = async (socket, token) => {
       socket.emit('invalid_auth')
     }
   }catch {
-    console.log("Getmessagedata error.")
+    socket.emit("error", "Server error.  Could not fetch messages.")
   }
 }
 
 module.exports.createMessage = async (socket, onlineUsers, newMessage) => {
   try {
-    const message = new Message(newMessage)
+    const message = new message(newMessage)
     await message.save();
     socket.emit('message_update', newMessage.from)
     if(onlineUsers[newMessage.to]) {
         onlineUsers[newMessage.to].emit('message_update', newMessage.from)
     }
   }catch {
-    console.log("createMessage error.")
+    const notif = {
+      type: "error",
+      msg: `Server error.  Message ${newMessage.message} could not be sent to ${newMessage.to}`
+    }
+    socket.emit("notification", notif)
   }
 }
 

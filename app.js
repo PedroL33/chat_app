@@ -27,7 +27,7 @@ io.on("connection", function(socket) {
   var query = socket.handshake.query
   if(query && query.token) {
     try{
-      jwt.verify(query.token, process.env.JWTSECRET, function(err, decoded) {
+      jwt.verify(query.token, process.env.JWTSECRET, (err, decoded) => {
         if(decoded.exp < Date.now()/1000) {
           socket.emit('invalid_auth')
         } else if(onlineUsers[decoded.id]) {

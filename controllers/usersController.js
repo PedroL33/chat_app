@@ -53,7 +53,7 @@ module.exports.getUserData = async (socket, onlineUsers, token) => {
         const friends = user.friends.filter(item => item.status == "accepted");
         friends.forEach(item => {
           if(onlineUsers[item.user.username]) {
-            online[item._fields[0].properties.username] = {
+            online[item.user.username] = {
               isTyping: false,
               picture: item.user.image, 
               status: item.user.status
@@ -73,7 +73,6 @@ module.exports.getUserData = async (socket, onlineUsers, token) => {
         socket.emit('user_data', userData);
       }
     }else {
-      console.log('getUserData')
       socket.emit('invalid_auth');
     }
   }catch {
@@ -85,7 +84,7 @@ module.exports.friendUpdate = async (socket, onlineUsers, data, token) => {
   try{
     if(auth.checkAuth(token)) {
       const user = await User.findOne({username: socket.username}).populate('friends.user');
-      const friends = user.friends.filter(item => item.user.status === "accepted");
+      const friends = user.friends.filter(item => item.status === "accepted");
       friends.forEach(item => {
         if(onlineUsers[item.user.username]) {
           onlineUsers[item.user.username].emit('friend_update');
