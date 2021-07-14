@@ -20,17 +20,22 @@ module.exports.authenticate = function (socket, next) {
     }
 }
 
-module.exports.checkAuth = (token) => {
-  let isAuth = true;
-  try {
-      jwt.verify(token, process.env.JWTSECRET, function(err, decoded) {
+module.exports.checkAuth = async (socket) => {
+  return new Promise((resolve, reject) => {
+    try {
+      if(!socket.handshake.query || !socket.handshake.query.token) {
+        reject("Auth error")
+      }
+      jwt.verify(socket.handshake.query.token, process.env.JWTSECRET, function(err, decoded) {
           if(decoded.exp < Date.now()/1000) {
-              isAuth = false;
+              reject("Auth error");
+          }else {
+            resolve(decoded)
           }
       })
-  }
-  catch {
-      isAuth = false;
-  }
-  return isAuth;
+    }
+    catch {
+        reject("Auth error");
+    }
+  })
 }

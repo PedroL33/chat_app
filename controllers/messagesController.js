@@ -1,18 +1,14 @@
 var Message = require('../models/messages');
 var auth = require('../Authentication/checkAuth')
 
-module.exports.getMessageData = function(socket, token) {
-    if(auth.checkAuth(token)) {
-        Message.find({$or: [{from: socket.username}, {to: socket.username}]})
-        .exec((err, results) => {
-            if(err) {
-                return console.log(err)
-            }
-            socket.emit("message_data", results)
-        })
-    }else {
-      socket.emit('invalid_auth')
-    }
+module.exports.getMessageData = async (socket) => {
+  try {
+    await auth.checkAuth(socket);
+    const messages = await Message.find({$or: [{from: socket.username}, {to: socket.username}]});
+    socket.emit("message_data", messages);
+  }catch {
+    console.log("Server error while getting messages")
+  }
 }
 
 module.exports.createMessage = function(socket, onlineUsers, newMessage) {

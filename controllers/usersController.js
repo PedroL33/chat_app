@@ -27,6 +27,7 @@ const uploadFile = (buffer, name, type) => {
 module.exports.getCurrentUser = async (socket) => {
   const session = driver.session()
   try {
+    await auth.checkAuth(socket);
     const results = await session.readTransaction(tx => 
       tx.run(`MATCH (currentUser:user {username: $username}) RETURN currentUser`, {username: socket.username})
     )
@@ -37,59 +38,64 @@ module.exports.getCurrentUser = async (socket) => {
         currentUser.status = results.records[0]._fields[0].properties.status;
     }
     socket.emit('current_user_data', currentUser)
-  }catch {
-    console.log("Server error with get user.")
+  }catch(err) {
+    if(err === "Auth error") {
+      socket.emit("invalid_auth")
+    }else {
+      console.log("Server error fetching current user data.")
+    }
   }finally {
     await session.close();
   }
 }
 
-module.exports.getUserData = async (socket, onlineUsers, token) => {
-  if(auth.checkAuth(token)) {
-    const session = driver.session();
-    try {
-      const results = await session.readTransaction(tx =>
-        tx.run(`MATCH (:user { username: $username}) - [r:FRIEND {status: 'accepted'}] - (friend:user)
-        RETURN friend`, {username: socket.username})
-      )
-      var online = {}
-      var offline = {}
-      if(results.records.length) {
-          results.records.forEach(item => {
-          if(onlineUsers[item._fields[0].properties.username]) {
-              online[item._fields[0].properties.username] = {
-                isTyping: false,
-                picture: item._fields[0].properties.picture, 
-                status: item._fields[0].properties.status
-              }
-          }else {
-              offline[item._fields[0].properties.username] = {
-                isTyping: false,
-                picture: item._fields[0].properties.picture, 
-                status: item._fields[0].properties.status
-              }
-          }
-          })
-      }
-      var userData = {
-          online: online,
-          offline: offline
-      }
-      socket.emit('user_data', userData);
-    }catch {
-      console.log("server error")
-    }finally {
-      await session.close();
+module.exports.getUserData = async (socket, onlineUsers) => {
+  const session = driver.session();
+  try {
+    await auth.checkAuth(socket);
+    const results = await session.readTransaction(tx =>
+      tx.run(`MATCH (:user { username: $username}) - [r:FRIEND {status: 'accepted'}] - (friend:user)
+      RETURN friend`, {username: socket.username})
+    )
+    var online = {}
+    var offline = {}
+    if(results.records.length) {
+        results.records.forEach(item => {
+        if(onlineUsers[item._fields[0].properties.username]) {
+            online[item._fields[0].properties.username] = {
+              isTyping: false,
+              picture: item._fields[0].properties.picture, 
+              status: item._fields[0].properties.status
+            }
+        }else {
+            offline[item._fields[0].properties.username] = {
+              isTyping: false,
+              picture: item._fields[0].properties.picture, 
+              status: item._fields[0].properties.status
+            }
+        }
+        })
     }
-  }
-  else {
-    socket.emit('invalid_auth')
+    var userData = {
+        online: online,
+        offline: offline
+    }
+    socket.emit('user_data', userData);
+  }catch(err) {
+    if(err === "Auth error") {
+      socket.emit("invalid_auth")
+    }else {
+      console.log("Server error while fetching users data.")
+    }
+  }finally {
+    await session.close();
   }
 }
 
 module.exports.friendUpdate = async (socket, onlineUsers, data) => {
   const session = driver.session();
   try {
+    await auth.checkAuth(socket);
     const results = await session.readTransaction(tx =>
       tx.run(`MATCH (:user {username: $username}) - [r:FRIEND {status: 'accepted'}] - (friend:user) RETURN friend`, {username: socket.username})
     )
@@ -99,42 +105,55 @@ module.exports.friendUpdate = async (socket, onlineUsers, data) => {
         onlineUsers[item._fields[0].properties.username].emit('timeline_update', data)
       }
     })
-  }catch {
-    console.log("Server error with friend update.")
+  }catch(err) {
+    if(err === "Auth error") {
+      socket.emit("invalid_auth")
+    }else {
+      console.log("Server error while fetching a friend update.")
+    }
   }finally {
     await session.close();
   }
 }
 
-module.exports.uploadPhoto = async function(socket, file) {
+module.exports.uploadPhoto = async (socket, file) => {
+  const session = driver.session();
   try {
+    await auth.checkAuth(socket);
     const type = await FileType.fromBuffer(file);
     const timestamp = Date.now().toString();
     const fileName = `bucketFolder/${timestamp}-lg`;
     const data = await uploadFile(file, fileName, type);
-    var session = driver.session();
-    session.run(
-      `MATCH (currentUser:user {username: '${socket.username}'})
-      set currentUser.picture='${data.Location}'`
+    await session.writeTransaction(tx => 
+      tx.run(`MATCH (currentUser:user {username: $username}) set currentUser.picture=$location`, {username: socket.username, location: data.location})
     )
-    .then(results => {
-      socket.emit('update_complete', {message: "updated their profile picture.", username: socket.username, time: moment(Date.now()).calendar()})
-    })
-    .finally(() => session.close())
-  }
-  catch(err) {
-    console.log(err)
+    socket.emit('update_complete', {message: "updated their profile picture.", username: socket.username, time: moment(Date.now()).calendar()})
+  }catch(err) {
+    if(err === "Auth error") {
+      socket.emit("invalid_auth")
+    }else {
+      console.log("Server error while uploading photo.")
+    }
+  }finally {
+    await session.close();
   }
 }
 
-module.exports.updateStatus = function(socket, status) {
-  var session = driver.session();
-  session.run(
-    `MATCH (currentUser:user {username: '${socket.username}'})
-    set currentUser.status='${status}'`
-  )
-  .then(result => {
+module.exports.updateStatus = async (socket, status) => {
+  const session = driver.session();
+  try {
+    await auth.checkAuth(socket);
+    await session.writeTransaction(tx => 
+      tx.run(`MATCH (currentUser:user {username: $username}) set currentUser.status=$status`, {username: socket.username, status: status})
+    )
     socket.emit('update_complete', {message: `is now ${status}`, username: socket.username, time: moment(Date.now()).calendar()})
-  })
-  .finally(() => session.close())
+  }catch(err) {
+    if(err === "Auth error") {
+      socket.emit("invalid_auth")
+    }else {
+      console.log("Server error while updating status.")
+    }
+  }finally {
+    await session.close();
+  }
 }

@@ -1,7 +1,6 @@
 var express = require('express');
 require('dotenv').config();
 var app = express();
-var jwt = require('jsonwebtoken');
 var http = require('http');
 var socketIO = require('socket.io')
 var server = http.createServer(app);
@@ -24,34 +23,29 @@ var usersController = require('./controllers/usersController')
 var requestsController = require('./controllers/requestsController')
 var messagesController = require('./controllers/messagesController')
 
+const auth = require('./Authentication/checkAuth');
+
 var onlineUsers = {};
-io.on("connection", function(socket) {
-  var query = socket.handshake.query
-  if(query && query.token) {
-    try{
-      jwt.verify(query.token, process.env.JWTSECRET, function(err, decoded) {
-        if(decoded.exp < Date.now()/1000) {
-          socket.emit('invalid_auth')
-        } else if(onlineUsers[decoded.username]) {
-          socket.emit('duplicate_auth', "Already logged in somewhere.")
-        }else {
-          socket.username = decoded.username
-          console.log(`${socket.username} connected to server.`);
-          onlineUsers[socket.username] = socket;
-          usersController.getCurrentUser(socket);
-        }
-      })
+io.on("connection", async (socket) => {
+  try{
+    const decoded = await auth.checkAuth(socket);
+    if(onlineUsers[decoded.username]) {
+      socket.emit('duplicate_auth', "Already logged in somewhere.")
+    }else {
+      socket.username = decoded.username
+      console.log(`${socket.username} connected to server.`);
+      onlineUsers[socket.username] = socket;
+      usersController.getCurrentUser(socket);
     }
-    catch {
-        socket.emit('invalid_auth')
-    }
+  }catch(err) {
+    socket.emit('invalid_auth')
   }
 
-  socket.on('get_user_data', (token) => usersController.getUserData(socket, onlineUsers, token))
+  socket.on('get_user_data', () => usersController.getUserData(socket, onlineUsers))
 
-  socket.on('get_request_data', (token) => requestsController.getRequestData(socket, token))
+  socket.on('get_request_data', () => requestsController.getRequestData(socket))
 
-  socket.on('get_message_data', (token) => messagesController.getMessageData(socket, token))
+  socket.on('get_message_data', () => messagesController.getMessageData(socket))
 
   socket.on('get_current_user', () => usersController.getCurrentUser(socket))
 

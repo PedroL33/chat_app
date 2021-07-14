@@ -3,27 +3,24 @@ var driver = new neo4j.driver(process.env.AURA_URI, neo4j.auth.basic(process.env
 var auth = require('../Authentication/checkAuth')
 var moment = require('moment');
 
-module.exports.getRequestData = async (socket, token) => {
-  if(auth.checkAuth(token)) {
-    const session = driver.session();
-    try {
-      const result = await session.readTransaction(tx =>
-        tx.run(`MATCH (:user { username: '$username'}) <- [r:FRIEND {status: 'requested'}] - (request:user) RETURN request`, {username: socket.username})
-      )
-      const requestData = []
-      if(result.records.length) {
-        result.records.forEach(item => {
-          requestData.push(item._fields[0].properties)
-        })
-      }
-      socket.emit('request_data', requestData)
-    }catch {
-      console.log("getRequestDataError")
-    }finally {
-      await session.close();
+module.exports.getRequestData = async (socket) => {
+  const session = driver.session();
+  try {
+    await auth.checkAuth(socket)
+    const result = await session.readTransaction(tx =>
+      tx.run(`MATCH (:user { username: '$username'}) <- [r:FRIEND {status: 'requested'}] - (request:user) RETURN request`, {username: socket.username})
+    )
+    const requestData = []
+    if(result.records.length) {
+      result.records.forEach(item => {
+        requestData.push(item._fields[0].properties)
+      })
     }
-  }else {
-    socket.emit('invalid_auth')
+    socket.emit('request_data', requestData)
+  }catch {
+    console.log("getRequestDataError")
+  }finally {
+    await session.close();
   }
 }
 
