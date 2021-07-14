@@ -1,32 +1,30 @@
 const neo4j = require('neo4j-driver');
-var driver = neo4j.driver(process.env.GRAPHENEDB_BOLT_URL, neo4j.auth.basic(process.env.GRAPHENEDB_BOLT_USER, process.env.GRAPHENEDB_BOLT_PASSWORD), { encrypted : true });
+var driver = new neo4j.driver(process.env.AURA_URI, neo4j.auth.basic(process.env.AURA_USER, process.env.AURA_PASSWORD));
 var auth = require('../Authentication/checkAuth')
 var moment = require('moment');
 
-module.exports.getRequestData = function(socket, token) {
-  auth.checkAuth(token, (res) => {
-    if(res) {
-      var session = driver.session();
-      session.run(
-        `MATCH (:user { username: '${socket.username}'}) <- [r:FRIEND {status: 'requested'}] - (request:user)
-        RETURN request`
+module.exports.getRequestData = async (socket, token) => {
+  if(auth.checkAuth(token)) {
+    const session = driver.session();
+    try {
+      const result = await session.readTransaction(tx =>
+        tx.run(`MATCH (:user { username: '$username'}) <- [r:FRIEND {status: 'requested'}] - (request:user) RETURN request`, {username: socket.username})
       )
-      .then(result => {
-        var requestData = []
-        if(result.records.length) {
-          result.records.forEach(item => {
-            requestData.push(item._fields[0].properties.username)
-          })
-        }
-        socket.emit('request_data', requestData)
-      })
-      .finally(() => {
-        session.close();
-      }) 
-    }else {
-      socket.emit('invalid_auth')
+      const requestData = []
+      if(result.records.length) {
+        result.records.forEach(item => {
+          requestData.push(item._fields[0].properties)
+        })
+      }
+      socket.emit('request_data', requestData)
+    }catch {
+      console.log("getRequestDataError")
+    }finally {
+      await session.close();
     }
-  }) 
+  }else {
+    socket.emit('invalid_auth')
+  }
 }
 
 module.exports.sendRequest = function(socket, onlineUsers, friend) {

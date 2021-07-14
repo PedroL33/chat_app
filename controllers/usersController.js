@@ -1,5 +1,5 @@
 const neo4j = require('neo4j-driver');
-var driver = neo4j.driver(process.env.GRAPHENEDB_BOLT_URL, neo4j.auth.basic(process.env.GRAPHENEDB_BOLT_USER, process.env.GRAPHENEDB_BOLT_PASSWORD), { encrypted : true });
+var driver = new neo4j.driver(process.env.AURA_URI, neo4j.auth.basic(process.env.AURA_USER, process.env.AURA_PASSWORD));
 var auth = require('../Authentication/checkAuth')
 const AWS = require("aws-sdk");
 const FileType = require('file-type');
@@ -24,83 +24,86 @@ const uploadFile = (buffer, name, type) => {
   return s3.upload(params).promise();
 };
 
-module.exports.getCurrentUser = function(socket) {
-  var session = driver.session()
-  session.run(`MATCH (currentUser:user {username: '${socket.username}'}) RETURN currentUser`)
-  .then(results => {
-    var currentUser = {
-      username: results.records[0]._fields[0].properties.username,
-      picture: results.records[0]._fields[0].properties.picture,
-      status: results.records[0]._fields[0].properties.status
+module.exports.getCurrentUser = async (socket) => {
+  const session = driver.session()
+  try {
+    const results = await session.readTransaction(tx => 
+      tx.run(`MATCH (currentUser:user {username: $username}) RETURN currentUser`, {username: socket.username})
+    )
+    const currentUser = {}
+    if(results && results.records) {
+        currentUser.username = results.records[0]._fields[0].properties.username;
+        currentUser.picture = results.records[0]._fields[0].properties.picture;
+        currentUser.status = results.records[0]._fields[0].properties.status;
     }
     socket.emit('current_user_data', currentUser)
-  })
-  .finally(() => {
-    session.close();
-  })
+  }catch {
+    console.log("Server error with get user.")
+  }finally {
+    await session.close();
+  }
 }
 
-module.exports.getUserData = function (socket, onlineUsers, token) {
-  auth.checkAuth(token, (res) => {
-    if(res) {
-      var session = driver.session();
-      session.run(
-        `MATCH (:user { username: '${socket.username}'}) - [r:FRIEND {status: 'accepted'}] - (friend:user)
-        RETURN friend`
+module.exports.getUserData = async (socket, onlineUsers, token) => {
+  if(auth.checkAuth(token)) {
+    const session = driver.session();
+    try {
+      const results = await session.readTransaction(tx =>
+        tx.run(`MATCH (:user { username: $username}) - [r:FRIEND {status: 'accepted'}] - (friend:user)
+        RETURN friend`, {username: socket.username})
       )
-      .then( result => {
-        var online = {}
-        var offline = {}
-        if(result.records.length) {
-            result.records.forEach(item => {
-            if(onlineUsers[item._fields[0].properties.username]) {
-                online[item._fields[0].properties.username] = {
-                  isTyping: false,
-                  picture: item._fields[0].properties.picture, 
-                  status: item._fields[0].properties.status
-                }
-            }else {
-                offline[item._fields[0].properties.username] = {
-                  isTyping: false,
-                  picture: item._fields[0].properties.picture, 
-                  status: item._fields[0].properties.status
-                }
-            }
-            })
-        }
-        var userData = {
-            online: online,
-            offline: offline
-        }
-        socket.emit('user_data', userData);
-      })
-      .finally(() => {
-          session.close();
-      })
+      var online = {}
+      var offline = {}
+      if(results.records.length) {
+          results.records.forEach(item => {
+          if(onlineUsers[item._fields[0].properties.username]) {
+              online[item._fields[0].properties.username] = {
+                isTyping: false,
+                picture: item._fields[0].properties.picture, 
+                status: item._fields[0].properties.status
+              }
+          }else {
+              offline[item._fields[0].properties.username] = {
+                isTyping: false,
+                picture: item._fields[0].properties.picture, 
+                status: item._fields[0].properties.status
+              }
+          }
+          })
+      }
+      var userData = {
+          online: online,
+          offline: offline
+      }
+      socket.emit('user_data', userData);
+    }catch {
+      console.log("server error")
+    }finally {
+      await session.close();
     }
-    else {
-      socket.emit('invalid_auth')
-    }
-  })
+  }
+  else {
+    socket.emit('invalid_auth')
+  }
 }
 
-module.exports.friendUpdate = function(socket, onlineUsers, data) {
-  var session = driver.session();
-  session.run(
-    `MATCH (:user {username: '${socket.username}'}) - [r:FRIEND {status: 'accepted'}] - (friend:user)
-    RETURN friend`
-  )
-  .then(results => {
+module.exports.friendUpdate = async (socket, onlineUsers, data) => {
+  const session = driver.session();
+  try {
+    const results = await session.readTransaction(tx =>
+      tx.run(`MATCH (:user {username: $username}) - [r:FRIEND {status: 'accepted'}] - (friend:user) RETURN friend`, {username: socket.username})
+    )
     results.records.forEach(item => {
       if(onlineUsers[item._fields[0].properties.username]) {
         onlineUsers[item._fields[0].properties.username].emit('friend_update')
         onlineUsers[item._fields[0].properties.username].emit('timeline_update', data)
       }
     })
-  })
-  .finally(() => {
-    session.close();
-  })
+  }catch {
+    console.log("Server error with friend update.")
+  }finally {
+    await session.close();
+  }
 }
 
 module.exports.uploadPhoto = async function(socket, file) {
