@@ -25,12 +25,17 @@
     "jade": "~1.11.0",
     "jsonwebtoken": "^8.5.1",
     "moment": "^2.25.3",
-    "mongoose": "^5.9.7",
+    "mongoose": "^5.13.2",
     "morgan": "~1.9.1",
     "multiparty": "^4.2.1",
-    "neo4j-driver": "^4.0.2",
+    "neo4j-driver": "^4.3.1",
     "nodemon": "^2.0.2",
     "read-chunk": "^3.2.0",
+<<<<<<< HEAD
     "socket.io": "^2.4.0"
+=======
+    "socket.io": "^2.3.0",
+    "uuid": "^8.3.2"
+>>>>>>> old-state
   }
 }

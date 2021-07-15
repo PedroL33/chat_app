@@ -20,6 +20,7 @@ module.exports.authenticate = function (socket, next) {
     }
 }
 
+<<<<<<< HEAD
 module.exports.checkAuth = (token) => {
     try {
         return jwt.verify(token, process.env.JWTSECRET, function(err, decoded) {
@@ -28,5 +29,24 @@ module.exports.checkAuth = (token) => {
     }
     catch {
         return false;
+=======
+module.exports.checkAuth = async (socket) => {
+  return new Promise((resolve, reject) => {
+    try {
+      if(!socket.handshake.query || !socket.handshake.query.token) {
+        reject("Auth error")
+      }
+      jwt.verify(socket.handshake.query.token, process.env.JWTSECRET, function(err, decoded) {
+          if(decoded.exp < Date.now()/1000) {
+              reject("Auth error");
+          }else {
+            resolve(decoded)
+          }
+      })
     }
+    catch {
+        reject("Auth error");
+>>>>>>> old-state
+    }
+  })
 }

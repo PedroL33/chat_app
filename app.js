@@ -1,22 +1,22 @@
-var express = require('express');
+const express = require('express');
 require('dotenv').config();
-var app = express();
-var jwt = require('jsonwebtoken');
-var http = require('http');
-var socketIO = require('socket.io')
-var server = http.createServer(app);
-var cors = require('cors');
-app.use(cors())
-var io = socketIO(server)
-var indexRouter = require('./routes')
-var port = process.env.PORT || 3000;
-var moment = require('moment')
+const app = express();
+const http = require('http');
+const socketIO = require('socket.io')
+const server = http.createServer(app);
+const cors = require('cors');
+const io = socketIO(server)
+const indexRouter = require('./routes')
+const port = process.env.PORT || 3000;
+const debounce = require('./functions/debounce');
 
+app.use(cors())
 var mongoose = require('mongoose');
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 });
+<<<<<<< HEAD
 
 var usersController = require('./controllers/usersController')
 var requestsController = require('./controllers/requestsController')
@@ -44,19 +44,46 @@ io.on("connection", function(socket) {
     catch {
         socket.emit('invalid_auth')
     }
+=======
+const db = mongoose.connection;
+db.on('error', console.error.bind(console, 'MongoDB connection error:'));
+
+const usersController = require('./controllers/usersController')
+const requestsController = require('./controllers/requestsController')
+const messagesController = require('./controllers/messagesController')
+var indexController = require('./controllers')
+
+const auth = require('./Authentication/checkAuth');
+
+let onlineUsers = indexController.onlineUsers;
+
+io.sockets.on("connection", async (socket) => {
+  try{
+    const decoded = await auth.checkAuth(socket);
+    socket.username = decoded.username
+    onlineUsers[socket.username] = socket;
+    debounce.onConnect(socket, onlineUsers);
+    usersController.getCurrentUser(socket);
+  }catch(err) {
+    socket.emit('invalid_auth')
+>>>>>>> old-state
   }
 
-  socket.on('get_user_data', (token) => usersController.getUserData(socket, onlineUsers, token))
+  socket.on('get_user_data', () => usersController.getUserData(socket, onlineUsers))
 
-  socket.on('get_request_data', (token) => requestsController.getRequestData(socket, token))
+  socket.on('get_request_data', () => requestsController.getRequestData(socket))
 
-  socket.on('get_message_data', (token) => messagesController.getMessageData(socket, token))
+  socket.on('get_message_data', () => messagesController.getMessageData(socket))
 
   socket.on('get_current_user', (token) => usersController.getCurrentUser(socket, token))
 
+<<<<<<< HEAD
   socket.on('new_user', (token) => usersController.friendUpdate(socket, onlineUsers, {message: "has come online.", username: socket.username, time: moment(Date.now()).calendar()}, token))
 
   socket.on('send_request', (friend, token) => requestsController.sendRequest(socket, onlineUsers, friend, token))
+=======
+  socket.on('send_request', (friend) => requestsController.sendRequest(socket, onlineUsers, friend))
+>>>>>>> old-state
 
   socket.on('accept_request', (request, token) => requestsController.acceptRequest(socket, onlineUsers, request, token))
   
@@ -77,13 +104,8 @@ io.on("connection", function(socket) {
   socket.on('broadcast_update', (data, token) => usersController.friendUpdate(socket, onlineUsers, data, token))
 
   socket.on('disconnect', () => {
+    debounce.onDisconnect(socket, onlineUsers);
     delete onlineUsers[socket.username]
-    setTimeout(() => {
-      if(!onlineUsers[socket.username]) {
-        usersController.friendUpdate(socket, onlineUsers, {message: "has gone offline.", username: socket.username, time: moment(Date.now()).calendar()})
-        console.log(`${socket.username} has disconnected.`)
-      }
-    }, 5000);
   })
 })
 
