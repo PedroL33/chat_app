@@ -16,35 +16,6 @@ mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 });
-<<<<<<< HEAD
-
-var usersController = require('./controllers/usersController')
-var requestsController = require('./controllers/requestsController')
-var messagesController = require('./controllers/messagesController')
-
-var onlineUsers = {};
-io.on("connection", function(socket) {
-  var query = socket.handshake.query
-  if(query && query.token) {
-    try{
-      jwt.verify(query.token, process.env.JWTSECRET, (err, decoded) => {
-        if(decoded.exp < Date.now()/1000) {
-          socket.emit('invalid_auth')
-        } else if(onlineUsers[decoded.id]) {
-          socket.emit('duplicate_auth', "Already logged in somewhere.")
-        }else {
-          socket.username = decoded.username;
-          socket.id = decoded.id;
-          onlineUsers[decoded.username] = socket;
-          usersController.getCurrentUser(socket, query.token);
-          console.log(`${socket.username} connected to server.`);
-        }
-      })
-    }
-    catch {
-        socket.emit('invalid_auth')
-    }
-=======
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
@@ -66,7 +37,6 @@ io.sockets.on("connection", async (socket) => {
     usersController.getCurrentUser(socket);
   }catch(err) {
     socket.emit('invalid_auth')
->>>>>>> old-state
   }
 
   socket.on('get_user_data', () => usersController.getUserData(socket, onlineUsers))
@@ -77,13 +47,7 @@ io.sockets.on("connection", async (socket) => {
 
   socket.on('get_current_user', (token) => usersController.getCurrentUser(socket, token))
 
-<<<<<<< HEAD
-  socket.on('new_user', (token) => usersController.friendUpdate(socket, onlineUsers, {message: "has come online.", username: socket.username, time: moment(Date.now()).calendar()}, token))
-
-  socket.on('send_request', (friend, token) => requestsController.sendRequest(socket, onlineUsers, friend, token))
-=======
   socket.on('send_request', (friend) => requestsController.sendRequest(socket, onlineUsers, friend))
->>>>>>> old-state
 
   socket.on('accept_request', (request, token) => requestsController.acceptRequest(socket, onlineUsers, request, token))
   

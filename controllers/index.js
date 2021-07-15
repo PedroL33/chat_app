@@ -4,15 +4,12 @@ var jwt = require('jsonwebtoken');
 const User = require('../models/users');
 require('dotenv').config();
 
-<<<<<<< HEAD
-=======
 const neo4j = require('neo4j-driver');
 const driver = neo4j.driver(process.env.AURA_URI, neo4j.auth.basic(process.env.AURA_USER, process.env.AURA_PASSWORD));
 
 
 exports.onlineUsers = {};
 
->>>>>>> old-state
 exports.signup = [
     check('username').isLength({min: 4}).withMessage("Must be at least 4 characters long."),
     check('password').isLength({min:6}).withMessage("Must be at least 6 characters long."),
@@ -24,25 +21,6 @@ exports.signup = [
                 errors: errors.array()
             })
         }
-<<<<<<< HEAD
-        const exists = await User.findOne({username: req.body.username});
-        if(exists) {
-          return res.status(400).json({
-            erorrs: [{param: "username", msg: "Already exists."}]
-          })
-        }else {
-          const passhash = await bcrypt.hash(req.body.password, 12)
-          const user = new User({
-            username: req.body.username,
-            password: passhash
-          })
-          const saved = await user.save()
-          return res.status(200).json({
-              msg: "User successfully created.",
-              token: jwt.sign({username: saved.username, id: saved._id}, process.env.JWTSECRET, {expiresIn: '1h'})
-          })
-        }
-=======
         bcrypt.hash(req.body.password, 12, async (err, hash) => {
             if(err && err.length) {
                 return res.status(400).json({
@@ -72,29 +50,10 @@ exports.signup = [
               await session.close();
             }
         })
->>>>>>> old-state
     }
 ]
 
 exports.login = async (req, res) => {
-<<<<<<< HEAD
-    const user = await User.findOne({username: req.body.username})
-    if(!user) {
-      return res.status(422).json({
-        error: "Invalid Credentials"
-      })
-    }
-    const match = await bcrypt.compare(req.body.password, user.password)
-    if(!match) {
-      return res.status(422).json({
-        error: "Invalid Credentials"
-      })
-    }
-    return res.status(200).json({
-        msg: "Authentication successful.",
-        token: jwt.sign({username: user.username, id: user._id}, process.env.JWTSECRET, {expiresIn: '1h'})
-    })
-=======
     const session = driver.session();
     try {
       const results = await session.readTransaction(tx => 
@@ -131,5 +90,4 @@ exports.login = async (req, res) => {
     }finally {
         await session.close();
     }
->>>>>>> old-state
 }
