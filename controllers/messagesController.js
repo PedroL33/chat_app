@@ -1,5 +1,6 @@
 var Message = require('../models/messages');
 var auth = require('../Authentication/checkAuth')
+const { v4: uuidv4 } = require('uuid');
 
 module.exports.getMessageData = async (socket) => {
   try {
@@ -11,17 +12,18 @@ module.exports.getMessageData = async (socket) => {
   }
 }
 
-module.exports.createMessage = function(socket, onlineUsers, newMessage) {
-    var message = new Message(newMessage)
-    message.save((err, message) => {
-        if(err) {
-            return console.log(err)
-        }
-        socket.emit('message_update', newMessage.from)
-        if(onlineUsers[newMessage.to]) {
-            onlineUsers[newMessage.to].emit('message_update', newMessage.from)
-        }
-    })
+module.exports.createMessage = async (socket, onlineUsers, newMessage) => {
+  try {
+    const Message = new Message(newMessage);
+    const results = await message.save();
+    socket.emit('message_update', newMessage.from)
+    if(onlineUsers[newMessage.to]) {
+        onlineUsers[newMessage.to].emit('message_update', newMessage.from)
+    }
+  }catch {
+    socket.emit(`notification`, {id: uuidv4(), msg: "Server error while sending message."})
+  }
+    
 }
 
 module.exports.markRead = function(socket, from) {

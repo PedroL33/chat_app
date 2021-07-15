@@ -86,6 +86,7 @@ module.exports.getUserData = async (socket, onlineUsers) => {
       socket.emit("invalid_auth")
     }else {
       console.log("Server error while fetching users data.")
+      console.log(err)
     }
   }finally {
     await session.close();

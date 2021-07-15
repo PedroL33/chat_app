@@ -8,7 +8,7 @@ const cors = require('cors');
 const io = socketIO(server)
 const indexRouter = require('./routes')
 const port = process.env.PORT || 3000;
-const moment = require('moment')
+const debounce = require('./functions/debounce');
 
 app.use(cors())
 var mongoose = require('mongoose');
@@ -28,12 +28,12 @@ const auth = require('./Authentication/checkAuth');
 
 let onlineUsers = indexController.onlineUsers;
 
-io.on("connection", async (socket) => {
+io.sockets.on("connection", async (socket) => {
   try{
     const decoded = await auth.checkAuth(socket);
     socket.username = decoded.username
-    console.log(`${socket.username} connected to server.`);
     onlineUsers[socket.username] = socket;
+    debounce.onConnect(socket, onlineUsers);
     usersController.getCurrentUser(socket);
   }catch(err) {
     socket.emit('invalid_auth')
@@ -46,8 +46,6 @@ io.on("connection", async (socket) => {
   socket.on('get_message_data', () => messagesController.getMessageData(socket))
 
   socket.on('get_current_user', () => usersController.getCurrentUser(socket))
-
-  socket.on('new_user', () => usersController.friendUpdate(socket, onlineUsers, {message: "has come online.", username: socket.username, time: moment(Date.now()).calendar()}))
 
   socket.on('send_request', (friend) => requestsController.sendRequest(socket, onlineUsers, friend))
 
@@ -70,13 +68,8 @@ io.on("connection", async (socket) => {
   socket.on('broadcast_update', (data) => usersController.friendUpdate(socket, onlineUsers, data))
 
   socket.on('disconnect', () => {
+    debounce.onDisconnect(socket, onlineUsers);
     delete onlineUsers[socket.username]
-    setTimeout(() => {
-      if(!onlineUsers[socket.username]) {
-        usersController.friendUpdate(socket, onlineUsers, {message: "has gone offline.", username: socket.username, time: moment(Date.now()).calendar()})
-        console.log(`${socket.username} has disconnected.`)
-      }
-    }, 5000);
   })
 })
 
