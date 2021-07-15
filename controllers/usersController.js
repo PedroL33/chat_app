@@ -124,8 +124,9 @@ module.exports.uploadPhoto = async (socket, file) => {
     const timestamp = Date.now().toString();
     const fileName = `bucketFolder/${timestamp}-lg`;
     const data = await uploadFile(file, fileName, type);
+    console.log(data)
     await session.writeTransaction(tx => 
-      tx.run(`MATCH (currentUser:user {username: $username}) set currentUser.picture=$location`, {username: socket.username, location: data.location})
+      tx.run(`MATCH (currentUser:user {username: $username}) set currentUser.picture=$location`, {username: socket.username, location: data.Location})
     )
     socket.emit('update_complete', {message: "updated their profile picture.", username: socket.username, time: moment(Date.now()).calendar()})
   }catch(err) {

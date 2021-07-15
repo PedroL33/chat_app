@@ -1,42 +1,40 @@
-var express = require('express');
+const express = require('express');
 require('dotenv').config();
-var app = express();
-var http = require('http');
-var socketIO = require('socket.io')
-var server = http.createServer(app);
-var cors = require('cors');
-app.use(cors())
-var io = socketIO(server)
-var indexRouter = require('./routes')
-var port = process.env.PORT || 3000;
-var moment = require('moment')
+const app = express();
+const http = require('http');
+const socketIO = require('socket.io')
+const server = http.createServer(app);
+const cors = require('cors');
+const io = socketIO(server)
+const indexRouter = require('./routes')
+const port = process.env.PORT || 3000;
+const moment = require('moment')
 
+app.use(cors())
 var mongoose = require('mongoose');
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 });
-var db = mongoose.connection;
+const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
-var usersController = require('./controllers/usersController')
-var requestsController = require('./controllers/requestsController')
-var messagesController = require('./controllers/messagesController')
+const usersController = require('./controllers/usersController')
+const requestsController = require('./controllers/requestsController')
+const messagesController = require('./controllers/messagesController')
+var indexController = require('./controllers')
 
 const auth = require('./Authentication/checkAuth');
 
-var onlineUsers = {};
+let onlineUsers = indexController.onlineUsers;
+
 io.on("connection", async (socket) => {
   try{
     const decoded = await auth.checkAuth(socket);
-    if(onlineUsers[decoded.username]) {
-      socket.emit('duplicate_auth', "Already logged in somewhere.")
-    }else {
-      socket.username = decoded.username
-      console.log(`${socket.username} connected to server.`);
-      onlineUsers[socket.username] = socket;
-      usersController.getCurrentUser(socket);
-    }
+    socket.username = decoded.username
+    console.log(`${socket.username} connected to server.`);
+    onlineUsers[socket.username] = socket;
+    usersController.getCurrentUser(socket);
   }catch(err) {
     socket.emit('invalid_auth')
   }

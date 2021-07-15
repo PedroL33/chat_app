@@ -6,6 +6,9 @@ require('dotenv').config();
 const neo4j = require('neo4j-driver');
 const driver = neo4j.driver(process.env.AURA_URI, neo4j.auth.basic(process.env.AURA_USER, process.env.AURA_PASSWORD));
 
+
+exports.onlineUsers = {};
+
 exports.signup = [
     check('username').isLength({min: 4}).withMessage("Must be at least 4 characters long."),
     check('password').isLength({min:6}).withMessage("Must be at least 6 characters long."),
@@ -59,10 +62,16 @@ exports.login = async (req, res) => {
       if(results.records && results.records[0]) {
         bcrypt.compare(req.body.password, results.records[0]._fields[0].properties.password, (err, valid) => {
           if(valid) {
+            if(module.exports.onlineUsers[req.body.username]) {
+              return res.status(400).json({
+                error: "Already logged in somewhere."
+              })
+            }else {
               return res.status(200).json({
                   msg: "Authentication successful.",
                   token: jwt.sign({username: req.body.username}, process.env.JWTSECRET, {expiresIn: '1h'})
               })
+            }
           }else {
               return res.status(400).json({
                   error: "Invalid Credentials"

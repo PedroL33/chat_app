@@ -8,7 +8,7 @@ module.exports.getRequestData = async (socket) => {
   try {
     await auth.checkAuth(socket)
     const result = await session.readTransaction(tx =>
-      tx.run(`MATCH (:user { username: '$username'}) <- [r:FRIEND {status: 'requested'}] - (request:user) RETURN request`, {username: socket.username})
+      tx.run(`MATCH (:user { username: $username}) <- [r:FRIEND {status: 'requested'}] - (request:user) RETURN request`, {username: socket.username})
     )
     const requestData = []
     if(result.records.length) {
@@ -17,27 +17,35 @@ module.exports.getRequestData = async (socket) => {
       })
     }
     socket.emit('request_data', requestData)
-  }catch {
-    console.log("getRequestDataError")
+  }catch(err) {
+    if(err === "Auth error") {
+      socket.emit("invalid_auth")
+    }else {
+      console.log("Server error while fetching request data.")
+    }
   }finally {
     await session.close();
   }
 }
 
-module.exports.sendRequest = function(socket, onlineUsers, friend) {
-  var session = driver.session();
-  if(friend === socket.username) {
-    socket.emit('request_message', {type: 'error', msg: 'Cannot add yourself.'})
-  }else {
-    session.run(
-      `MATCH (from:user), (to:user) 
-      WHERE from.username='${socket.username}' AND to.username='${friend}' 
-      MERGE (from)-[r:FRIEND]-(to)
-      ON CREATE SET r.status='requested'
-      ON MATCH SET r.duplicate=true
-      RETURN r`
-    )
-    .then(results => {
+module.exports.sendRequest = async (socket, onlineUsers, friend) => {
+  const session = driver.session();
+  try {
+    await auth.checkAuth(socket);
+    if(friend === socket.username) {
+      socket.emit('request_message', {type: 'error', msg: 'Cannot add yourself.'})
+    }else {
+      const results = await session.writeTransaction(tx => 
+        tx.run(`
+          MATCH (from:user), (to:user) 
+          WHERE from.username=$username AND to.username=$friend 
+          MERGE (from)-[r:FRIEND]-(to)
+          ON CREATE SET r.status='requested'
+          ON MATCH SET r.duplicate=true
+          RETURN r
+        `, {username: socket.username, friend: friend})  
+      )
+      console.log(friend)
       if(!results.records.length) {
         socket.emit('request_message', {type: 'error', msg: 'User does not exist.'})
       }else if(results.records[0]._fields[0].properties.username === socket.username) {
@@ -52,46 +60,64 @@ module.exports.sendRequest = function(socket, onlineUsers, friend) {
           onlineUsers[friend].emit('request_update')
         }
       }
-    })
-    .finally(() => {
-      session.close()
-    })
+    }
+  }catch(err) {
+    if(err === "Auth error") {
+      socket.emit("invalid_auth")
+    }else {
+      console.log("Server error while sending request.")
+    }
+  }finally {
+    await session.close();
   }
 }
 
-module.exports.acceptRequest = function(socket, onlineUsers, request) {
-  var session = driver.session();
-  session.run(
-    `MATCH (:user { username: '${socket.username}'}) <- [r:FRIEND {status: 'requested'}] - (:user {username: '${request}'})
-    SET r.status='accepted'
-    RETURN r`
-  )
-  .then(results => {
+module.exports.acceptRequest = async (socket, onlineUsers, request) => {
+  const session = driver.session();
+  try {
+    await session.writeTransaction(tx => 
+      tx.run(
+        `MATCH (:user { username: $username}) <- [r:FRIEND {status: 'requested'}] - (:user {username: $request})
+        SET r.status='accepted' RETURN r`, {username: socket.username, request: request}
+      )  
+    )
     socket.emit('request_update')
     socket.emit('friend_update')
     if(onlineUsers[request]) {
       onlineUsers[request].emit('friend_update')
       onlineUsers[request].emit('timeline_update', {message: "accepted your friend request.", username: socket.username, time: moment(Date.now()).calendar()})
     }
-  })
-  .finally(() => {
-    session.close()
-  })
+  }catch(err) {
+    if(err === "Auth error") {
+      socket.emit("invalid_auth")
+    }else {
+      console.log("Server error while accepting request.")
+    }
+  }finally {
+    await session.close();
+  }
 }
 
-module.exports.declineRequest = function(socket, onlineUsers, request) {
-  var session = driver.session();
-  session.run(
-    `MATCH (:user { username: '${socket.username}'}) <- [r:FRIEND {status: 'requested'}] - (:user {username: '${request}'})
-    DELETE r`
-  )
-  .then(results => {
+module.exports.declineRequest = async (socket, onlineUsers, request) => {
+  const session = driver.session();
+  try {
+    await session.writeTransaction(tx =>
+      tx.run(
+        `MATCH (:user { username: $username}) <- [r:FRIEND {status: 'requested'}] - (:user {username: $request})
+        DELETE r`, {username: socket.username, request, request}
+      )  
+    )
     socket.emit('request_update')
     if(onlineUsers[request]) {
       onlineUsers[request].emit('timeline_update', {message: `declined your friend request`, username: socket.username, time: moment(Date.now()).calendar()})
     }
-  })
-  .finally(() => {
-    session.close()
-  })
+  }catch(err) {
+    if(err === "Auth error") {
+      socket.emit("invalid_auth")
+    }else {
+      console.log("Server error while declining request.")
+    }
+  }finally {
+    await session.close();
+  }
 }
