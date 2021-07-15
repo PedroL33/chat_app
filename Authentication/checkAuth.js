@@ -20,16 +20,6 @@ module.exports.authenticate = function (socket, next) {
     }
 }
 
-<<<<<<< HEAD
-module.exports.checkAuth = (token) => {
-    try {
-        return jwt.verify(token, process.env.JWTSECRET, function(err, decoded) {
-          return decoded.exp >= (Date.now()/1000);
-        })
-    }
-    catch {
-        return false;
-=======
 module.exports.checkAuth = async (socket) => {
   return new Promise((resolve, reject) => {
     try {
@@ -46,7 +36,6 @@ module.exports.checkAuth = async (socket) => {
     }
     catch {
         reject("Auth error");
->>>>>>> old-state
     }
   })
 }

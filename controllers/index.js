@@ -1,7 +1,6 @@
 var { check, validationResult } = require('express-validator');
 var bcrypt = require('bcrypt');
 var jwt = require('jsonwebtoken');
-const User = require('../models/users');
 require('dotenv').config();
 
 const neo4j = require('neo4j-driver');
