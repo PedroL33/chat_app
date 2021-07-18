@@ -27,9 +27,9 @@ const uploadFile = (buffer, name, type) => {
 module.exports.getCurrentUser = async (socket) => {
   const session = driver.session()
   try {
-    await auth.checkAuth(socket);
+    const decoded = await auth.checkAuth(socket);
     const results = await session.readTransaction(tx => 
-      tx.run(`MATCH (currentUser:user {username: $username}) RETURN currentUser`, {username: socket.username})
+      tx.run(`MATCH (currentUser:user {username: $username}) RETURN currentUser`, {username: decoded.username})
     )
     const currentUser = {}
     if(results && results.records) {
@@ -42,7 +42,8 @@ module.exports.getCurrentUser = async (socket) => {
     if(err === "Auth error") {
       socket.emit("invalid_auth")
     }else {
-      console.log("Server error fetching current user data.")
+      console.log(err);
+      socket.emit(`server_error`, {type: "error", msg: "Server error while fetching your user data."})
     }
   }finally {
     await session.close();
@@ -52,10 +53,10 @@ module.exports.getCurrentUser = async (socket) => {
 module.exports.getUserData = async (socket, onlineUsers) => {
   const session = driver.session();
   try {
-    await auth.checkAuth(socket);
+    const decoded = await auth.checkAuth(socket);
     const results = await session.readTransaction(tx =>
       tx.run(`MATCH (:user { username: $username}) - [r:FRIEND {status: 'accepted'}] - (friend:user)
-      RETURN friend`, {username: socket.username})
+      RETURN friend`, {username: decoded.username})
     )
     var online = {}
     var offline = {}
@@ -85,7 +86,7 @@ module.exports.getUserData = async (socket, onlineUsers) => {
     if(err === "Auth error") {
       socket.emit("invalid_auth")
     }else {
-      console.log("Server error while fetching users data.")
+      socket.emit(`server_error`, {type: "error", msg: "Server error while fetching users data."})
       console.log(err)
     }
   }finally {
@@ -96,9 +97,9 @@ module.exports.getUserData = async (socket, onlineUsers) => {
 module.exports.friendUpdate = async (socket, onlineUsers, data) => {
   const session = driver.session();
   try {
-    await auth.checkAuth(socket);
+    const decoded = await auth.checkAuth(socket);
     const results = await session.readTransaction(tx =>
-      tx.run(`MATCH (:user {username: $username}) - [r:FRIEND {status: 'accepted'}] - (friend:user) RETURN friend`, {username: socket.username})
+      tx.run(`MATCH (:user {username: $username}) - [r:FRIEND {status: 'accepted'}] - (friend:user) RETURN friend`, {username: decoded.username})
     )
     results.records.forEach(item => {
       if(onlineUsers[item._fields[0].properties.username]) {
@@ -110,7 +111,8 @@ module.exports.friendUpdate = async (socket, onlineUsers, data) => {
     if(err === "Auth error") {
       socket.emit("invalid_auth")
     }else {
-      console.log("Server error while fetching a friend update.")
+      socket.emit(`server_error`, {type: "error", msg: "Server error while fetching a friend update."})
+      console.log(err)
     }
   }finally {
     await session.close();
@@ -120,21 +122,22 @@ module.exports.friendUpdate = async (socket, onlineUsers, data) => {
 module.exports.uploadPhoto = async (socket, file) => {
   const session = driver.session();
   try {
-    await auth.checkAuth(socket);
+    const decoded = await auth.checkAuth(socket);
     const type = await FileType.fromBuffer(file);
     const timestamp = Date.now().toString();
     const fileName = `bucketFolder/${timestamp}-lg`;
     const data = await uploadFile(file, fileName, type);
     console.log(data)
     await session.writeTransaction(tx => 
-      tx.run(`MATCH (currentUser:user {username: $username}) set currentUser.picture=$location`, {username: socket.username, location: data.Location})
+      tx.run(`MATCH (currentUser:user {username: $username}) set currentUser.picture=$location`, {username: decoded.username, location: data.Location})
     )
-    socket.emit('update_complete', {message: "updated their profile picture.", username: socket.username, time: moment(Date.now()).calendar()})
+    socket.emit('update_complete', {message: "updated their profile picture.", username: decoded.username, time: moment(Date.now()).calendar()})
   }catch(err) {
     if(err === "Auth error") {
       socket.emit("invalid_auth")
     }else {
-      console.log("Server error while uploading photo.")
+      socket.emit(`server_error`, {type: "error", msg: "Server error while uploading photo."});
+      console.log(err)
     }
   }finally {
     await session.close();
@@ -144,16 +147,17 @@ module.exports.uploadPhoto = async (socket, file) => {
 module.exports.updateStatus = async (socket, status) => {
   const session = driver.session();
   try {
-    await auth.checkAuth(socket);
+    const decoded = await auth.checkAuth(socket);
     await session.writeTransaction(tx => 
-      tx.run(`MATCH (currentUser:user {username: $username}) set currentUser.status=$status`, {username: socket.username, status: status})
+      tx.run(`MATCH (currentUser:user {username: $username}) set currentUser.status=$status`, {username: decoded.username, status: status})
     )
-    socket.emit('update_complete', {message: `is now ${status}`, username: socket.username, time: moment(Date.now()).calendar()})
+    socket.emit('update_complete', {message: `is now ${status}`, username: decoded.username, time: moment(Date.now()).calendar()})
   }catch(err) {
     if(err === "Auth error") {
       socket.emit("invalid_auth")
     }else {
-      console.log("Server error while updating status.")
+      socket.emit(`server_error`, {type: "error", msg: "Server error while updating status."});
+      console.log(err);
     }
   }finally {
     await session.close();

@@ -1,5 +1,5 @@
 const neo4j = require('neo4j-driver');
-var driver = new neo4j.driver(process.env.AURA_URI, neo4j.auth.basic(process.env.AURA_USER, process.env.AURA_PASSWORD));
+var driver = neo4j.driver(process.env.AURA_URI, neo4j.auth.basic(process.env.AURA_USER, process.env.AURA_PASSWORD));
 var auth = require('../Authentication/checkAuth')
 var moment = require('moment');
 const ObjectId = require('mongoose').Types.ObjectId;
@@ -7,22 +7,23 @@ const ObjectId = require('mongoose').Types.ObjectId;
 module.exports.getRequestData = async (socket) => {
   const session = driver.session();
   try {
-    await auth.checkAuth(socket)
+    const decoded = await auth.checkAuth(socket)
     const result = await session.readTransaction(tx =>
-      tx.run(`MATCH (:user { username: $username}) <- [r:FRIEND {status: 'requested'}] - (request:user) RETURN request`, {username: socket.username})
+      tx.run(`MATCH (:user { username: $username}) <- [r:FRIEND {status: 'requested'}] - (request:user) RETURN request`, {username: decoded.username})
     )
     const requestData = []
     if(result.records.length) {
       result.records.forEach(item => {
-        requestData.push(item._fields[0].properties)
+        requestData.push(item._fields[0].properties);
       })
     }
     socket.emit('request_data', requestData)
   }catch(err) {
     if(err === "Auth error") {
-      socket.emit("invalid_auth")
+      socket.emit("invalid_auth");
     }else {
-      console.log("Server error while fetching request data.")
+      socket.emit(`server_error`, {type: "error", msg: "Server error while fetching request data."});
+      console.log(err);
     }
   }finally {
     await session.close();
@@ -32,8 +33,8 @@ module.exports.getRequestData = async (socket) => {
 module.exports.sendRequest = async (socket, onlineUsers, friend) => {
   const session = driver.session();
   try {
-    await auth.checkAuth(socket);
-    if(friend === socket.username) {
+    const decoded = await auth.checkAuth(socket);
+    if(friend === decoded.username) {
       socket.emit('request_message', {type: 'error', msg: 'Cannot add yourself.'})
     }else {
       const results = await session.writeTransaction(tx => 
@@ -44,12 +45,12 @@ module.exports.sendRequest = async (socket, onlineUsers, friend) => {
           ON CREATE SET r.status='requested'
           ON MATCH SET r.duplicate=true
           RETURN r
-        `, {username: socket.username, friend: friend})  
+        `, {username: decoded.username, friend: friend})  
       )
       console.log(friend)
       if(!results.records.length) {
         socket.emit('request_message', {type: 'error', msg: 'User does not exist.'})
-      }else if(results.records[0]._fields[0].properties.username === socket.username) {
+      }else if(results.records[0]._fields[0].properties.username === decoded.username) {
         socket.emit('request_message', {type: 'error', msg: "Cannot add yourself."})
       }else if(results.records[0]._fields[0].properties.status === 'accepted') {
         socket.emit('request_message', {type: 'error', msg: "User is already your friend."})
@@ -68,9 +69,11 @@ module.exports.sendRequest = async (socket, onlineUsers, friend) => {
     }
   }catch(err) {
     if(err === "Auth error") {
-      socket.emit("invalid_auth")
+      socket.emit("invalid_auth");
     }else {
-      console.log("Server error while sending request.")
+      socket.emit(`server_error`, {type: "error", msg: "Server error while sending request."});
+      console.log(err);
+      
     }
   }finally {
     await session.close();
@@ -80,23 +83,25 @@ module.exports.sendRequest = async (socket, onlineUsers, friend) => {
 module.exports.acceptRequest = async (socket, onlineUsers, request) => {
   const session = driver.session();
   try {
+    const decoded = await(auth.checkAuth(socket));
     await session.writeTransaction(tx => 
       tx.run(
         `MATCH (:user { username: $username}) <- [r:FRIEND {status: 'requested'}] - (:user {username: $request})
-        SET r.status='accepted' RETURN r`, {username: socket.username, request: request}
+        SET r.status='accepted' RETURN r`, {username: decoded.username, request: request}
       )  
     )
     socket.emit('request_update')
     socket.emit('friend_update')
     if(onlineUsers[request]) {
       onlineUsers[request].emit('friend_update')
-      onlineUsers[request].emit('timeline_update', {message: "accepted your friend request.", username: socket.username, time: moment(Date.now()).calendar()})
+      onlineUsers[request].emit('timeline_update', {message: "accepted your friend request.", username: decoded.username, time: moment(Date.now()).calendar()})
     }
   }catch(err) {
     if(err === "Auth error") {
       socket.emit("invalid_auth")
     }else {
-      console.log("Server error while accepting request.")
+      console.log(err);
+      socket.emit(`server_error`, {type: "error", msg: "Server error while accepting request."});
     }
   }finally {
     await session.close();
@@ -106,21 +111,23 @@ module.exports.acceptRequest = async (socket, onlineUsers, request) => {
 module.exports.declineRequest = async (socket, onlineUsers, request) => {
   const session = driver.session();
   try {
+    const decoded = await auth.checkAuth(socket);
     await session.writeTransaction(tx =>
       tx.run(
         `MATCH (:user { username: $username}) <- [r:FRIEND {status: 'requested'}] - (:user {username: $request})
-        DELETE r`, {username: socket.username, request, request}
+        DELETE r`, {username: decoded.username, request, request}
       )  
     )
     socket.emit('request_update')
     if(onlineUsers[request]) {
-      onlineUsers[request].emit('timeline_update', {message: `declined your friend request`, username: socket.username, time: moment(Date.now()).calendar()})
+      onlineUsers[request].emit('timeline_update', {message: `declined your friend request`, username: decoded.username, time: moment(Date.now()).calendar()})
     }
   }catch(err) {
     if(err === "Auth error") {
-      socket.emit("invalid_auth")
+      socket.emit("invalid_auth");
     }else {
-      console.log("Server error while declining request.")
+      console.log(err);
+      socket.emit(`server_error`, {type: "error", msg: "Server error while declining request."});
     }
   }finally {
     await session.close();
