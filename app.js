@@ -1,16 +1,20 @@
 const express = require('express');
 require('dotenv').config();
-const app = express();
-const http = require('http');
-const socketIO = require('socket.io')
-const server = http.createServer(app);
+var app = express();
 const cors = require('cors');
-const io = socketIO(server)
+app.use(cors())
+const server = require('http').createServer(app);
+const io = require('socket.io')(server, {
+  cors: {
+    origin: "http://localhost:3001",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["my-custom-header"],
+    credentials: true
+  }
+}); 
 const indexRouter = require('./routes')
-const port = process.env.PORT || 3000;
 const debounce = require('./functions/debounce');
 
-app.use(cors())
 var mongoose = require('mongoose');
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
@@ -27,13 +31,14 @@ var indexController = require('./controllers')
 const auth = require('./Authentication/checkAuth');
 
 let onlineUsers = indexController.onlineUsers;
+let lastOnline = {};
 
-io.sockets.on("connection", async (socket) => {
+io.on("connection", async (socket) => {
   try{
     const decoded = await auth.checkAuth(socket);
     socket.username = decoded.username
     onlineUsers[socket.username] = socket;
-    debounce.onConnect(socket, onlineUsers);
+    debounce.onConnect(socket, onlineUsers, lastOnline);
     usersController.getCurrentUser(socket);
   }catch(err) {
     socket.emit('invalid_auth')
@@ -68,8 +73,9 @@ io.sockets.on("connection", async (socket) => {
   socket.on('broadcast_update', (data, token) => usersController.friendUpdate(socket, onlineUsers, data, token))
 
   socket.on('disconnect', () => {
-    debounce.onDisconnect(socket, onlineUsers);
+    lastOnline[socket.username] = Date.now();
     delete onlineUsers[socket.username]
+    debounce.onDisconnect(socket, onlineUsers);
   })
 })
 
@@ -77,6 +83,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/', indexRouter)
 
+
+const port = process.env.PORT || 3000;
 server.listen(port, () => 
   console.log(`Listening on port ${port}`)
 )

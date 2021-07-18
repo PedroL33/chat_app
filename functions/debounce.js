@@ -13,10 +13,14 @@ const debounce = (func, wait) => {
   }
 }
 
-module.exports.onConnect = debounce((socket, onlineUsers) => {
-  console.log(`${socket.username} connected to server.`);
-  usersController.friendUpdate(socket, onlineUsers, {message: "has come online.", username: socket.username, time: moment(Date.now()).calendar()})
-}, 10000)
+module.exports.onConnect = (socket, onlineUsers, lastOnline) => {
+  if(!lastOnline[socket.username] || Date.now() - lastOnline[socket.username] > 10000) {
+    console.log(`${socket.username} connected to server.`);
+    usersController.friendUpdate(socket, onlineUsers, {message: "has come online.", username: socket.username, time: moment(Date.now()).calendar()})
+  }else {
+    lastOnline[socket.useranme] = Date.now();
+  }
+}
 
 module.exports.onDisconnect =  debounce((socket, onlineUsers) => {
   if(!onlineUsers[socket.username]) {
