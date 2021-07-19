@@ -6,7 +6,7 @@ app.use(cors())
 const server = require('http').createServer(app);
 const io = require('socket.io')(server, {
   cors: {
-    origin: "http://localhost:3001",
+    origin: "https://chatapp.site",
     methods: ["GET", "POST"],
     allowedHeaders: ["my-custom-header"],
     credentials: true
